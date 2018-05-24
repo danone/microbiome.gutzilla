@@ -1,0 +1,77 @@
+---
+title: "AGP notebook : diversity"
+output: html_notebook
+---
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+devtools::load_all()
+
+
+
+```
+
+
+```{r}
+
+data("DWH_F_STR_DIV_clean")
+data("nb_reads_estimated")
+data("DWH_R_STR_SEQ_clean")
+
+#merge(DWH_F_STR_DIV_clean, nb_reads_estimated, by="seq_id")
+
+
+
+DWH_F_STR_DIV_clean %>%
+  merge(DWH_R_STR_SEQ_clean , by="seq_id") %>%
+  ggplot() + geom_histogram(aes(x=st_res_num, fill=spe_val)) + facet_wrap(~test_cod, scales = "free")
+
+
+
+
+DWH_F_STR_DIV_clean %>%
+  merge(DWH_R_STR_SEQ_clean , by="seq_id") %>%
+  merge(nb_reads_estimated, by ="seq_id") %>%
+  filter(est_n_seq > 50000) %>%
+  ggplot() + geom_boxplot(aes(y=st_res_num, x=spe_val)) + 
+  facet_wrap(~test_cod, scales = "free") + scale_y_log10() + coord_flip() 
+
+
+
+
+
+```
+
+
+
+
+
+```{r}
+
+DWH_R_STR_SEQ_clean %>%
+  filter(spe_val == "Stool") %>%
+  merge(.,DWH_R_STR_DM_clean, by=c("seq_id","sub_id")) %>%
+  as_tibble %>%
+  filter(hst_tax_id==9606, thn_val == "Illumina MiSeq") %>%
+  merge(DWH_F_STR_DIV_clean, by="seq_id") %>%
+  group_by(seq_id,sub_id,age_val,test_cod) %>%
+  mutate(or_res_val=or_res_val %>% as.numeric) %>%
+  summarize(or_res_val=median(or_res_val)) %>%
+  filter(age_val != "Miissing") %>% 
+  ungroup() %>%
+  mutate(age_val = age_val %>% as.character %>% as.numeric) %>%
+  ggplot() + geom_point(aes(x=age_val,y=or_res_val),size=1,alpha=0.2) + facet_wrap(~test_cod, scale = "free") + geom_smooth(aes(x=age_val,y=or_res_val))
+  
+
+
+
+
+
+
+
+
+```
+
+
