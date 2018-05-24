@@ -31,7 +31,7 @@ DWH_F_STR_DIV = read_delim("data-raw/DB/formatted data/DWH_F_STR_DIV.txt", delim
 
 DWH_F_STR_DIV %>%
   filter(nb_seq_num == 10000) %>%
-  select(seq_id,test_cod,st_res_num) -> DWH_F_STR_DIV_clean
+  select(seq_id,test_cod,or_res_val) -> DWH_F_STR_DIV_clean
 
 
 devtools::use_data(DWH_F_STR_DIV_clean, overwrite = TRUE)
