@@ -31,7 +31,7 @@ attributes(spec_txn$cols$cmp_009)[["class"]][1] = "collector_skip"
 
 # import txn but skip when st_res_num == 0
 
-f <- function(x, pos) subset(x, st_res_num != 0)
+f <- function(x, pos) subset(x, or_res_val != 0)
 
 DWH_F_STR_TXN <- read_delim_chunked(
   file="data-raw/DB/formatted data/DWH_F_STR_TXN.txt",
@@ -44,17 +44,23 @@ DWH_F_STR_TXN <- read_delim_chunked(
 
 DWH_F_STR_TXN %>%
   filter(cat_val=="100nt") %>%
-  select(seq_id,contains("_val"),st_res_num) %>%
-  select(-cat_val,-met_hod_val,-or_res_val,-scat_val,-test_val) -> DWH_F_STR_TXN_clean
+  select(seq_id,contains("_val"),or_res_val, st_res_num) %>%
+  select(-cat_val,-met_hod_val,-scat_val,-test_val) -> DWH_F_STR_TXN_clean
 
 
 
 DWH_F_STR_TXN %>%
-  filter(cat_val=="100nt") %>%
-  select(seq_id,contains("_val"),st_res_num) %>%
-  select(-cat_val,-met_hod_val,-or_res_val,-scat_val,-test_val) -> DWH_F_STR_TXN_clean_notrim
+  filter(cat_val=="notrim") %>%
+  select(seq_id,contains("_val"),or_res_val, st_res_num) %>%
+  select(-cat_val,-met_hod_val,-scat_val,-test_val) -> DWH_F_STR_TXN_clean_notrim
 
+DWH_F_STR_TXN_clean %>%
+  group_by(seq_id) %>%
+  summarize(m=min(or_res_val)) %>%
+  mutate(est_n_seq=1/m) %>%
+  select(seq_id,est_n_seq) -> nb_reads_estimated
 
+devtools::use_data(nb_reads_estimated, overwrite = TRUE)
 
 devtools::use_data(DWH_F_STR_TXN_clean,overwrite = TRUE)
 
