@@ -26,7 +26,8 @@ data("DWH_R_STR_SEQ_clean")
 
 DWH_F_STR_DIV_clean %>%
   merge(DWH_R_STR_SEQ_clean , by="seq_id") %>%
-  ggplot() + geom_histogram(aes(x=st_res_num, fill=spe_val)) + facet_wrap(~test_cod, scales = "free")
+  mutate(or_res_val=or_res_val %>% as.numeric) %>%
+  ggplot() + geom_histogram(aes(x=or_res_val, fill=spe_val)) + facet_wrap(~test_cod, scales = "free")
 
 
 
@@ -34,8 +35,9 @@ DWH_F_STR_DIV_clean %>%
 DWH_F_STR_DIV_clean %>%
   merge(DWH_R_STR_SEQ_clean , by="seq_id") %>%
   merge(nb_reads_estimated, by ="seq_id") %>%
+  mutate(or_res_val=or_res_val %>% as.numeric) %>%
   filter(est_n_seq > 50000) %>%
-  ggplot() + geom_boxplot(aes(y=st_res_num, x=spe_val)) + 
+  ggplot() + geom_boxplot(aes(y=or_res_val, x=spe_val)) + 
   facet_wrap(~test_cod, scales = "free") + scale_y_log10() + coord_flip() 
 
 
