@@ -24,9 +24,9 @@ otu_table_L6_clean =
 
 
 
-compare = merge(otu_table_L6_clean, DWH_F_STR_TXN_clean, by=c("seq_id","kig_val","phy_val","cls_val","ord_val","fam_val","gen_val"))
+compared = merge(otu_table_L6_clean, DWH_F_STR_TXN_clean, by=c("seq_id","kig_val","phy_val","cls_val","ord_val","fam_val","gen_val"))
 
-compare %>% pull(value) %>% summary
+compared %>% pull(value) %>% summary
 
 
 
