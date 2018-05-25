@@ -79,15 +79,15 @@ DWH_F_STR_ML %>%
 
 
 #
-#   DWH_F_STR_ML %>%
-#     filter(cat_val %in% c("Specialized Diet")) %>%
-#     select(sub_id,seq_id,test_val,or_res_val) %>%
-#     group_by(sub_id,seq_id,test_val, or_res_val) %>%
-#     slice(1) %>%
-#     #reshape2::dcast(sub_id+seq_id~test_val) %>%
-#     as_tibble %>%
-#     filter(or_res_val %in% c("Yes","No")) %>%
-#     ggplot() + geom_bar(aes(x=test_val,fill=or_res_val)) + coord_flip()
+  # DWH_F_STR_ML %>%
+  #   filter(cat_val %in% c("Specialized Diet")) %>%
+  #   select(sub_id,seq_id,test_val,or_res_val) %>%
+  #   group_by(sub_id,seq_id,test_val, or_res_val) %>%
+  #   slice(1) %>%
+  #   #reshape2::dcast(sub_id+seq_id~test_val) %>%
+  #   as_tibble %>%
+  #   filter(or_res_val %in% c("Yes","No")) %>%
+  #   ggplot() + geom_bar(aes(x=test_val,fill=or_res_val)) + coord_flip()
 #
 #
 
