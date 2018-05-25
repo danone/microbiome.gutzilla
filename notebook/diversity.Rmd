@@ -77,3 +77,56 @@ DWH_R_STR_SEQ_clean %>%
 ```
 
 
+
+
+```{r}
+
+DWH_R_STR_SEQ_clean %>%
+  filter(spe_val == "Stool") %>%
+  merge(.,DWH_R_STR_DM_clean, by=c("seq_id","sub_id")) %>%
+  as_tibble %>%
+  filter(hst_tax_id==9606, thn_val == "Illumina MiSeq") %>%
+  merge(DWH_F_STR_DIV_clean, by="seq_id") %>%
+  group_by(seq_id,sub_id,age_val,test_cod) %>%
+  mutate(or_res_val=or_res_val %>% as.numeric) %>%
+  summarize(or_res_val=median(or_res_val)) %>%
+  filter(age_val != "Miissing") %>% 
+  ungroup() %>%
+  mutate(age_val = age_val %>% as.character %>% as.numeric) %>%
+  filter(age_val < 5) %>%
+  ggplot() + 
+  geom_point(aes(x=age_val,y=or_res_val),size=1,alpha=0.2) + 
+  facet_wrap(~test_cod, scale = "free") #+ geom_smooth(aes(x=age_val,y=or_res_val))
+
+
+
+
+```
+
+
+
+```{r}
+data("DWH_R_STR_DM_clean")
+data("DWH_F_STR_TXN_clean")
+data("DWH_F_STR_SC_country")
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Bilophila") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  as_tibble %>%
+  #pull(BTH_CTRY) %>% table %>% sort %>% rev
+  #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
+  filter(BTH_CTRY %in% c("United States","United Kingdom", "India", "Australia")) %>%
+  ggplot() + geom_histogram(aes(x=Bilophila + 10^-6, fill=BTH_CTRY), bins=30) + scale_x_log10() + facet_wrap(~BTH_CTRY, scales ="free_y")
+  
+  
+  
+
+```
+
+
+
+
+
