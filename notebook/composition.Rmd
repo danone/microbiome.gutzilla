@@ -34,7 +34,8 @@ DWH_R_STR_DM_clean$cat_age_val %>% table
 ```{r}
 
 DWH_F_STR_TXN_clean %>%
-  
+   merge(.,DWH_R_STR_SEQ_clean %>%
+          filter(spe_val == "Stool"), by="seq_id")  %>%
   filter(gen_val == "Prevotella") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
@@ -46,7 +47,8 @@ DWH_F_STR_TXN_clean %>%
 
 
 DWH_F_STR_TXN_clean %>%
-  
+   merge(.,DWH_R_STR_SEQ_clean %>%
+          filter(spe_val == "Stool"), by="seq_id")  %>%
   filter(gen_val == "Prevotella") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
@@ -75,7 +77,8 @@ ggsave("Prevotella_AGP.pdf")
 
 
 DWH_F_STR_TXN_clean %>%
-  
+   merge(.,DWH_R_STR_SEQ_clean %>%
+          filter(spe_val == "Stool"), by="seq_id")  %>%
   filter(gen_val == "Prevotella") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
@@ -105,6 +108,8 @@ ggsave("Akkermansia_AGP.pdf")
 
 
 DWH_F_STR_TXN_clean %>% 
+   merge(.,DWH_R_STR_SEQ_clean %>%
+          filter(spe_val == "Stool"), by="seq_id")  %>%
   filter(gen_val == "Prevotella") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
    merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
@@ -123,7 +128,8 @@ DWH_F_STR_TXN_clean %>%
 
 
 DWH_F_STR_TXN_clean %>%
-  
+   merge(.,DWH_R_STR_SEQ_clean %>%
+          filter(spe_val == "Stool"), by="seq_id")  %>%
   filter(gen_val == "Bifidobacterium") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
@@ -153,7 +159,8 @@ DWH_F_STR_TXN_clean %>%
 ```{r, fig.height=6, fig.width=10}
 
 DWH_F_STR_TXN_clean %>%
-  
+  merge(.,DWH_R_STR_SEQ_clean %>%
+          filter(spe_val == "Stool"), by="seq_id")  %>%
   filter(gen_val == "Bifidobacterium") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
@@ -182,7 +189,8 @@ ggsave("Bifidobacterium_age.pdf")
 
 
 DWH_F_STR_TXN_clean %>%
-  
+   merge(.,DWH_R_STR_SEQ_clean %>%
+          filter(spe_val == "Stool"), by="seq_id")  %>%
   filter(gen_val == "Prevotella") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
@@ -212,7 +220,8 @@ ggsave("Prevotella_age.pdf")
 
 
 DWH_F_STR_TXN_clean %>%
-  
+   merge(.,DWH_R_STR_SEQ_clean %>%
+          filter(spe_val == "Stool"), by="seq_id")  %>%
   filter(gen_val == "Akkermansia") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
