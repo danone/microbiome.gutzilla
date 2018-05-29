@@ -93,10 +93,10 @@ DWH_R_STR_SEQ_clean %>%
   filter(age_val != "Miissing") %>% 
   ungroup() %>%
   mutate(age_val = age_val %>% as.character %>% as.numeric) %>%
-  filter(age_val < 5) %>%
+  filter(age_val >1, age_val < 10) %>%
   ggplot() + 
   geom_point(aes(x=age_val,y=or_res_val),size=1,alpha=0.2) + 
-  facet_wrap(~test_cod, scale = "free") #+ geom_smooth(aes(x=age_val,y=or_res_val))
+  facet_wrap(~test_cod, scale = "free") + geom_smooth(aes(x=age_val,y=or_res_val))
 
 
 
