@@ -90,5 +90,7 @@ DWH_F_STR_ML %>%
   #   ggplot() + geom_bar(aes(x=test_val,fill=or_res_val)) + coord_flip()
 #
 #
-
-
+  # merge(DWH_F_STR_ML_detail_diet, DWH_F_STR_ML_general_diet, by="seq_id") %>%
+  #   as_tibble %>%
+  #   ggplot() + geom_bar(aes(x=test_val,fill=or_res_val)) + coord_flip() + facet_wrap(~DIET_TYPE, scale="free_x")
+  #
