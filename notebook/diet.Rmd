@@ -1,0 +1,101 @@
+---
+title: "AGP notebook : diet impact"
+output: html_notebook
+---
+
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+devtools::load_all()
+
+
+
+
+```
+
+
+```{r}
+
+data("DWH_F_STR_ML_detail_diet")
+
+
+
+```
+
+
+
+
+
+
+```{r, fig.height=5, fig.width=10}
+
+
+DWH_F_STR_ML_detail_diet %>%
+  ggplot() + 
+  geom_bar(aes(x=test_val,fill=or_res_val)) + 
+  coord_flip() + scale_fill_brewer("") + theme_dark() + xlab("") + ylab("sample count")
+
+
+
+
+
+```
+
+
+
+```{r}
+
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Akkermansia") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+  merge(.,DWH_F_STR_ML_detail_diet %>% filter(test_val=="Consumption - At Least 1L of Water in a Day"), by="seq_id") %>%
+  merge(merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
+  as_tibble %>%
+  filter(cat_age_val %in% c("20s","30s","40s","50s","60s"))) %>%
+  mutate(or_res_val = ifelse(or_res_val == "Daily","Nomal drinker","Low drinker")) %>%
+  ggplot() +  geom_density_ridges(aes(x=Akkermansia + 10^-6, y=cat_age_val, fill=or_res_val), alpha=0.5) + scale_x_log10()
+
+
+
+
+
+
+
+```
+
+
+
+```{r, fig.height=10, fig.width=10, message=FALSE}
+
+
+
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Akkermansia") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+  merge(.,DWH_F_STR_ML_detail_diet, by="seq_id") %>%
+  merge(merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
+  as_tibble %>%
+  filter(cat_age_val %in% c("20s","30s","40s","50s","60s"))) %>%
+  #mutate(or_res_val = ifelse(or_res_val == "Daily","Nomal drinker","Low drinker")) %>%
+  ggplot() +  geom_density_ridges(aes(x=Akkermansia + 10^-6, y=cat_age_val, fill=or_res_val), alpha=0.5) + 
+  scale_x_log10() + scale_fill_brewer("") + facet_wrap(~test_val %>% gsub("Consumption - ", "", .))
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
