@@ -8,9 +8,22 @@ output: html_notebook
 ```{r, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(dplyr)
+library(ggridges)
 devtools::load_all()
 
 
+
+```
+
+
+```{r}
+
+data("DWH_R_STR_DM_clean")
+data("DWH_F_STR_TXN_clean")
+data("DWH_F_STR_SC_country")
+
+
+DWH_R_STR_DM_clean$cat_age_val %>% table
 
 ```
 
@@ -19,16 +32,27 @@ devtools::load_all()
 
 
 ```{r}
-data("DWH_R_STR_DM_clean")
-data("DWH_F_STR_TXN_clean")
-data("DWH_F_STR_SC_country")
 
 DWH_F_STR_TXN_clean %>%
   
   filter(gen_val == "Prevotella") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
-   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
   as_tibble %>%
+  filter(cat_age_val %in% c("20s","30s","40s","50s","60s")) %>%
+  pull(BTH_CTRY) %>% table %>% sort %>% rev %>% as_tibble %>% write.csv2(file = "nb_ind_country_of_birth.csv")
+
+
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Prevotella") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+  merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
+  as_tibble %>%
+  filter(cat_age_val %in% c("20s","30s","40s","50s","60s")) %>%
   #pull(BTH_CTRY) %>% table %>% sort %>% rev
   #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
   mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Italy","Greece","Spain","Portugal"), "South Europe",BTH_CTRY)) %>%
@@ -52,10 +76,12 @@ ggsave("Prevotella_AGP.pdf")
 
 DWH_F_STR_TXN_clean %>%
   
-  filter(gen_val == "Akkermansia") %>%
+  filter(gen_val == "Prevotella") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
-   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
   as_tibble %>%
+  filter(cat_age_val %in% c("20s","30s","40s","50s","60s")) %>%
   #pull(BTH_CTRY) %>% table %>% sort %>% rev
   #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
   mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Italy","Greece","Spain","Portugal"), "South Europe",BTH_CTRY)) %>%
@@ -87,3 +113,139 @@ DWH_F_STR_TXN_clean %>%
   
 
 ```
+
+
+
+
+
+```{r, fig.height=8, fig.width=6}
+
+
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Bifidobacterium") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+  merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
+  as_tibble %>%
+  filter(cat_age_val %in% c("child","teen","20s","30s","40s","50s","60s","70+")) %>%
+  mutate(cat_age_val = cat_age_val %>% forcats::fct_relevel("child","teen")) %>%
+  #pull(BTH_CTRY) %>% table %>% sort %>% rev
+  #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("France","Italy","Greece","Spain","Portugal","Poland", "Hungary","Austria","Czech Republic","Bulgaria","Romania","Ukraine","Germany","Norway", "Denmark","Sweden","Iceland","Finland"), "Europe",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Japan", "China","Hong Kong","Korea, Republic of","Philippines","Taiwan, Province of China","Malaysia","India"), "Asia",BTH_CTRY)) %>%
+  filter(BTH_CTRY %in% c("United States","United Kingdom", "Europe","Asia")) %>%
+  
+  ggplot() + 
+  #geom_histogram(aes(x=Bifidobacterium + 10^-6, fill=BTH_CTRY), bins=30) + 
+  geom_density(aes(x=Bifidobacterium + 10^-6, fill=cat_age_val)) +
+  facet_grid(cat_age_val~BTH_CTRY, scales ="free_y") +
+  viridis::scale_fill_viridis(discrete = TRUE,option = "B") +
+  guides(fill=FALSE) +
+  xlab("Bifidobacterium") + ylab("Number of stool sample") +
+  scale_x_log10() 
+ 
+
+
+```
+
+```{r, fig.height=6, fig.width=10}
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Bifidobacterium") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+  merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
+  as_tibble %>%
+  filter(cat_age_val %in% c("child","teen","20s","30s","40s","50s","60s","70+")) %>%
+  mutate(cat_age_val = cat_age_val %>% forcats::fct_relevel("child","teen")) %>%
+  #pull(BTH_CTRY) %>% table %>% sort %>% rev
+  #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("France","Italy","Greece","Spain","Portugal","Poland", "Hungary","Austria","Czech Republic","Bulgaria","Romania","Ukraine","Germany","Norway", "Denmark","Sweden","Iceland","Finland"), "Europe",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Japan", "China","Hong Kong","Korea, Republic of","Philippines","Taiwan, Province of China","Malaysia","India"), "Asia",BTH_CTRY)) %>%
+  filter(BTH_CTRY %in% c("United States","United Kingdom", "Europe","Asia")) %>%
+  #filter(BTH_CTRY %in% c("United States")) %>%
+  
+  ggplot() + 
+  geom_density_ridges_gradient(aes(x=Bifidobacterium + 10^-6, y=cat_age_val, fill=..x..)) + 
+  #geom_density(aes(x=Bifidobacterium + 10^-6, fill=cat_age_val)) +
+  
+  facet_wrap(~BTH_CTRY, scales ="free_y", ncol=4) +
+  viridis::scale_fill_viridis(option = "B") +
+  guides(fill=FALSE) +
+  xlab("Bifidobacterium") + ylab("stool sample prob.\nby Age") +
+  scale_x_log10() + theme_dark()
+
+ggsave("Bifidobacterium_age.pdf")
+
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Prevotella") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+  merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
+  as_tibble %>%
+  filter(cat_age_val %in% c("child","teen","20s","30s","40s","50s","60s","70+")) %>%
+  mutate(cat_age_val = cat_age_val %>% forcats::fct_relevel("child","teen")) %>%
+  #pull(BTH_CTRY) %>% table %>% sort %>% rev
+  #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("France","Italy","Greece","Spain","Portugal","Poland", "Hungary","Austria","Czech Republic","Bulgaria","Romania","Ukraine","Germany","Norway", "Denmark","Sweden","Iceland","Finland"), "Europe",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Japan", "China","Hong Kong","Korea, Republic of","Philippines","Taiwan, Province of China","Malaysia","India"), "Asia",BTH_CTRY)) %>%
+  filter(BTH_CTRY %in% c("United States","United Kingdom", "Europe","Asia")) %>%
+  #filter(BTH_CTRY %in% c("United States")) %>%
+  
+  ggplot() + 
+  geom_density_ridges_gradient(aes(x=Prevotella + 10^-6, y=cat_age_val, fill=..x..)) + 
+  #geom_density(aes(x=Bifidobacterium + 10^-6, fill=cat_age_val)) +
+  
+  facet_wrap(~BTH_CTRY, scales ="free_y", ncol=4) +
+  viridis::scale_fill_viridis(option = "B") +
+  guides(fill=FALSE) +
+  xlab("Prevotella") + ylab("stool sample prob.\nby Age") +
+  scale_x_log10() + theme_dark()
+
+ggsave("Prevotella_age.pdf")
+
+
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Akkermansia") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+  merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
+  as_tibble %>%
+  filter(cat_age_val %in% c("child","teen","20s","30s","40s","50s","60s","70+")) %>%
+  mutate(cat_age_val = cat_age_val %>% forcats::fct_relevel("child","teen")) %>%
+  #pull(BTH_CTRY) %>% table %>% sort %>% rev
+  #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("France","Italy","Greece","Spain","Portugal","Poland", "Hungary","Austria","Czech Republic","Bulgaria","Romania","Ukraine","Germany","Norway", "Denmark","Sweden","Iceland","Finland"), "Europe",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Japan", "China","Hong Kong","Korea, Republic of","Philippines","Taiwan, Province of China","Malaysia","India"), "Asia",BTH_CTRY)) %>%
+  filter(BTH_CTRY %in% c("United States","United Kingdom", "Europe","Asia")) %>%
+  #filter(BTH_CTRY %in% c("United States")) %>%
+  
+  ggplot() + 
+  geom_density_ridges_gradient(aes(x=Akkermansia + 10^-6, y=cat_age_val, fill=..x..)) + 
+  #geom_density(aes(x=Bifidobacterium + 10^-6, fill=cat_age_val)) +
+  
+  facet_wrap(~BTH_CTRY, scales ="free_y", ncol=4) +
+  viridis::scale_fill_viridis(option = "B") +
+  guides(fill=FALSE) +
+  xlab("Akkermansia") + ylab("stool sample prob.\nby Age") +
+  scale_x_log10() + theme_dark()
+
+ggsave("Akkermansia_age.pdf")
+
+
+
+
+
+
+```
+
+
+
+
