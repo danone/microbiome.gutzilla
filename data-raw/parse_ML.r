@@ -70,12 +70,15 @@ DWH_F_STR_ML %>%
     group_by(sub_id,seq_id,test_val, or_res_val) %>%
     slice(1) %>%
     filter(test_val != "Consumption - Artificial Sweeteners") %>%
+    ungroup %>%
+    mutate(or_res_val= or_res_val %>%
+             forcats::fct_relevel("Daily", after = 4) %>%
+             forcats::fct_relevel("Rarely (less than once/week)", after = 1) ) %>%
     #reshape2::dcast(sub_id+seq_id~test_val) %>%
     as_tibble -> DWH_F_STR_ML_detail_diet
 
-  devtools::use_data(DWH_F_STR_ML_detail_diet)
+  devtools::use_data(DWH_F_STR_ML_detail_diet, overwrite = TRUE)
 
-    #ggplot() + geom_bar(aes(x=test_val,fill=or_res_val)) + coord_flip()
 
 
 #
