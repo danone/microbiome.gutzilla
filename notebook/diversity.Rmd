@@ -4,7 +4,7 @@ output: html_notebook
 ---
 
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(dplyr)
 devtools::load_all()
@@ -104,27 +104,6 @@ DWH_R_STR_SEQ_clean %>%
 ```
 
 
-
-```{r}
-data("DWH_R_STR_DM_clean")
-data("DWH_F_STR_TXN_clean")
-data("DWH_F_STR_SC_country")
-
-DWH_F_STR_TXN_clean %>%
-  
-  filter(gen_val == "Bilophila") %>%
-  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
-   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
-  as_tibble %>%
-  #pull(BTH_CTRY) %>% table %>% sort %>% rev
-  #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
-  filter(BTH_CTRY %in% c("United States","United Kingdom", "India", "Australia")) %>%
-  ggplot() + geom_histogram(aes(x=Bilophila + 10^-6, fill=BTH_CTRY), bins=30) + scale_x_log10() + facet_wrap(~BTH_CTRY, scales ="free_y")
-  
-  
-  
-
-```
 
 
 
