@@ -1,0 +1,89 @@
+---
+title: "AGP notebook : microbiota composition"
+output: html_notebook
+---
+
+
+
+```{r, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+devtools::load_all()
+
+
+
+```
+
+
+
+
+
+```{r}
+data("DWH_R_STR_DM_clean")
+data("DWH_F_STR_TXN_clean")
+data("DWH_F_STR_SC_country")
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Prevotella") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  as_tibble %>%
+  #pull(BTH_CTRY) %>% table %>% sort %>% rev
+  #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Italy","Greece","Spain","Portugal"), "South Europe",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Japan", "China","Hong Kong","Korea, Republic of","Philippines","Taiwan, Province of China","Malaysia"), "Asia (excl. India)",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Poland", "Hungary","Austria","Czech Republic","Bulgaria","Romania","Ukraine"), "Eastern Europe",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Norway", "Denmark","Sweden","Iceland","Finland"), "Scandinavia",BTH_CTRY)) %>%
+  filter(BTH_CTRY %in% c("United States","Canada", "United Kingdom", "Germany","India", "South Europe","Eastern Europe","Scandinavia","Asia (excl. India)")) %>%
+  
+  ggplot() + 
+  geom_histogram(aes(x=Prevotella + 10^-6, fill=BTH_CTRY), bins=30) + 
+  geom_density(aes(x=Prevotella + 10^-6, y = ..count../6, fill=NULL)) +
+  facet_wrap(~BTH_CTRY, scales ="free_y") +
+  viridis::scale_fill_viridis(discrete = TRUE,option = "B") +
+  guides(fill=FALSE) +
+  xlab("Prevotella") + ylab("Number of stool sample") +
+  scale_x_log10() 
+ 
+
+ggsave("Prevotella_AGP.pdf")
+
+
+DWH_F_STR_TXN_clean %>%
+  
+  filter(gen_val == "Akkermansia") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  as_tibble %>%
+  #pull(BTH_CTRY) %>% table %>% sort %>% rev
+  #mutate(Prevotella = log10(Prevotella + 10^-6)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Italy","Greece","Spain","Portugal"), "South Europe",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Japan", "China","Hong Kong","Korea, Republic of","Philippines","Taiwan, Province of China","Malaysia"), "Asia (excl. India)",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Poland", "Hungary","Austria","Czech Republic","Bulgaria","Romania","Ukraine"), "Eastern Europe",BTH_CTRY)) %>%
+  mutate(BTH_CTRY = ifelse(BTH_CTRY %in% c("Norway", "Denmark","Sweden","Iceland","Finland"), "Scandinavia",BTH_CTRY)) %>%
+  filter(BTH_CTRY %in% c("United States","Canada", "United Kingdom", "Germany","India", "South Europe","Eastern Europe","Scandinavia","Asia (excl. India)")) %>%
+  
+  ggplot() + 
+  geom_histogram(aes(x=Akkermansia + 10^-6, fill=BTH_CTRY), bins=30) + 
+  geom_density(aes(x=Akkermansia + 10^-6, y = ..count../6, fill=NULL)) +
+  facet_wrap(~BTH_CTRY, scales ="free_y") +
+  viridis::scale_fill_viridis(discrete = TRUE,option = "B") +
+  guides(fill=FALSE) +
+  xlab("Akkermansia") + ylab("Number of stool sample") +
+  scale_x_log10()
+
+ggsave("Akkermansia_AGP.pdf")
+
+
+
+
+DWH_F_STR_TXN_clean %>% 
+  filter(gen_val == "Prevotella") %>%
+  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
+   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
+  as_tibble %>%
+  pull(BTH_CTRY) %>% table %>% sort %>% rev %>% as_tibble
+  
+
+```
