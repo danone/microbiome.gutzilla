@@ -79,7 +79,7 @@ ggsave("Prevotella_AGP.pdf")
 DWH_F_STR_TXN_clean %>%
    merge(.,DWH_R_STR_SEQ_clean %>%
           filter(spe_val == "Stool"), by="seq_id")  %>%
-  filter(gen_val == "Prevotella") %>%
+  filter(gen_val == "Akkermansia") %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
   merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
@@ -107,15 +107,6 @@ ggsave("Akkermansia_AGP.pdf")
 
 
 
-DWH_F_STR_TXN_clean %>% 
-   merge(.,DWH_R_STR_SEQ_clean %>%
-          filter(spe_val == "Stool"), by="seq_id")  %>%
-  filter(gen_val == "Prevotella") %>%
-  reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
-   merge(.,DWH_F_STR_SC_country, by="seq_id") %>% 
-  as_tibble %>%
-  pull(BTH_CTRY) %>% table %>% sort %>% rev %>% as_tibble
-  
 
 ```
 
@@ -156,7 +147,7 @@ DWH_F_STR_TXN_clean %>%
 
 ```
 
-```{r, fig.height=6, fig.width=10}
+```{r, fig.height=6, fig.width=10, message=FALSE}
 
 DWH_F_STR_TXN_clean %>%
   merge(.,DWH_R_STR_SEQ_clean %>%

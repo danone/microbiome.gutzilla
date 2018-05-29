@@ -33,11 +33,13 @@ data("DWH_F_STR_ML_detail_diet")
 
 
 DWH_F_STR_ML_detail_diet %>%
+   merge(.,DWH_R_STR_SEQ_clean %>%
+          filter(spe_val == "Stool") , by="seq_id")  %>%
   ggplot() + 
-  geom_bar(aes(x=test_val,fill=or_res_val)) + 
+  geom_bar(aes(x=test_val %>% gsub("Consumption - ","",.),fill=or_res_val)) + 
   coord_flip() + scale_fill_brewer("") + theme_dark() + xlab("") + ylab("sample count")
 
-
+ggsave("Detailled_Diet_Habit.pdf",h=5,w=10)
 
 
 
@@ -74,25 +76,45 @@ DWH_F_STR_TXN_clean %>%
 
 
 
-DWH_F_STR_TXN_clean %>%
+plot_diet_genus_age = function(genus){
+
+  #g = quo(genus)
   
-  filter(gen_val == "Akkermansia") %>%
+  DWH_F_STR_TXN_clean %>%
+  merge(.,DWH_R_STR_SEQ_clean %>%
+    filter(spe_val == "Stool"), by="seq_id")  %>%
+  filter(gen_val == genus) %>%
   reshape2::dcast(seq_id~gen_val, value.var = "or_res_val", fill=0) %>%
   merge(.,DWH_F_STR_ML_detail_diet, by="seq_id") %>%
-  merge(merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
+  merge(.,DWH_R_STR_DM_clean,by="seq_id") %>%
   as_tibble %>%
-  filter(cat_age_val %in% c("20s","30s","40s","50s","60s"))) %>%
+  filter(cat_age_val %in% c("20s","30s","40s","50s","60s")) %>%
   #mutate(or_res_val = ifelse(or_res_val == "Daily","Nomal drinker","Low drinker")) %>%
-  ggplot() +  geom_density_ridges(aes(x=Akkermansia + 10^-6, y=cat_age_val, fill=or_res_val), alpha=0.5) + 
-  scale_x_log10() + scale_fill_brewer("") + facet_wrap(~test_val %>% gsub("Consumption - ", "", .))
+  ggplot() +  geom_density_ridges(aes(x=get(genus)+ 10^-6, y=cat_age_val, fill=or_res_val), alpha=0.5) + 
+  scale_x_log10() + scale_fill_brewer("") + facet_wrap(~test_val %>% gsub("Consumption - ", "", .)) + xlab(genus) + ylab("Stool sample prob.\nby age")
 
 
+}
+
+pdf(file = "AGP_diet_age.pdf", h=10, w=10)
+
+for(i in c("Bacteroides","Prevotella","Faecalibacterium","Bifidobacterium","Akkermansia","Blautia","Dialister","Coprococcus","Parabacteroides","Lactobacillus","Streptococcus","Bilophila")){
+
+print(plot_diet_genus_age(i))
+
+}
+dev.off()
 
 
+#plot_diet_genus_age("Listeria")
 
-
-
-
+DWH_F_STR_TXN_clean %>%
+  merge(.,DWH_R_STR_SEQ_clean %>%
+    filter(spe_val == "Stool"), by="seq_id")  %>%
+  group_by(gen_val) %>%
+  summarize(n=n(),m=mean(or_res_val)) %>%
+  filter(n>2000) %>%
+  arrange(desc(n))
 
 
 
