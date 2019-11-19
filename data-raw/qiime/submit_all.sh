@@ -2,7 +2,7 @@
 
 #email=d3mcdonald@eng.ucsd.edu
 
-cwd=$(pwd)
+#cwd=$(pwd)
 #s01=$(echo "cd ${cwd}; sh 01.redbiom.sh" | qsub -l nodes=1:ppn=1 -l mem=16g -l walltime=8:00:00 -M "${email}" -m abe -N TMI01)
 #s02=$(echo "cd ${cwd}; sh 02.imports.sh" | qsub -W depend=afterok:${s01} -l nodes=1:ppn=1 -l mem=16g -l walltime=2:00:00 -M "${email}" -m abe -N TMI02)
 # s03=$(echo "cd ${cwd}; sh 03.filtering.sh" | qsub -W depend=afterok:${s02} -l nodes=1:ppn=1 -l mem=16g -l walltime=2:00:00 -M "${email}" -m abe -N TMI03)
