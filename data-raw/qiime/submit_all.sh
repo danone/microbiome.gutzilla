@@ -15,8 +15,8 @@
 # s06=$(echo "cd ${cwd}; sh 06.subsets-interest.sh" | qsub -W depend=afterok:${s05c}:${s05d} -l nodes=1:ppn=1 -l mem=16g -l walltime=2:00:00 -M "${email}" -m abe -N TMI06)
 # s07a=$(echo "cd ${cwd}; sh 07a.pcoa.sh" | qsub -W depend=afterok:${s06} -l nodes=1:ppn=1 -l mem=16g -l walltime=2:00:00 -M "${email}" -m abe -N TMI07a)
 
-
-#sh 01.redbiom.sh
+# submit to the machine using nohup sh submit_all.sh &
+sh 01.redbiom.sh
 sh 02.imports.sh
 sh 03.filtering.sh
 sh 04a.classify.sh

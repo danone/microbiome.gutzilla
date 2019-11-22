@@ -3,8 +3,8 @@
 source ./util.sh
 
 #if [ -z "${AG_DEBUG}" ]; then
-#    redbiom search metadata \
-#        "where qiita_study_id==10317 and sample_type=='Stool'" > ${d}/ag.ids
+    redbiom search metadata \
+        "where qiita_study_id==10317 and sample_type=='Stool'" > ${d}/ag.ids
 #else
     redbiom search metadata \
         "where qiita_study_id==10317 and sample_type=='Stool'" | head -n 100 > ${d}/ag.ids
