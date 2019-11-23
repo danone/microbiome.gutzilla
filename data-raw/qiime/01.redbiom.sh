@@ -10,6 +10,14 @@ source ./util.sh
      #   "where qiita_study_id==10317 and sample_type=='Stool'" | head -n 100 > ${d}/ag.ids
 #fi
 
+    redbiom search metadata \
+        "where qiita_study_id==10317 and  age_cat in ('20s','30s','40s','50s','60s','70') " > ${d}/ag.adults.ids
+
+# merge adult and stool ids with one liner R script
+Rscript -e "path <- commandArgs()[7]; toto=readLines(paste0(path,'/ag.ids'));titi=readLines(paste0(path,'/ag.adults.ids')); writeLines(intersect(toto,titi))" $d > ${d}/ag.ids
+
+# this can be done with bash sort | uniq -d but sort migth be too slow compared to R intersect
+
 redbiom fetch samples \
     --context $redbiom_ctx \
     --output ${d}/ag.biom \
