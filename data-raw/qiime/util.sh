@@ -3,6 +3,23 @@
 set -x
 set -e
 
+# set up TMP folder to user home
+if [[ -O /home/$USER/tmp && -d /home/$USER/tmp ]]; then
+        TMPDIR=/home/$USER/tmp
+else
+        # You may wish to remove this line, it is there in case
+        # a user has put a file 'tmp' in there directory or a
+        rm -rf /home/$USER/tmp 2> /dev/null
+        mkdir -p /home/$USER/tmp
+        TMPDIR=$(mktemp -d /home/$USER/tmp/XXXX)
+fi
+
+TMP=$TMPDIR
+TEMP=$TMPDIR
+
+export TMPDIR TMP TEMP
+
+
 # set up file system
 export HDF5_USE_FILE_LOCKING=FALSE
 
