@@ -12,15 +12,19 @@ devtools::load_all()
 
 ```
 
-
+load metadata
 ```{r}
 
 metadata = readr::read_tsv(system.file("data-raw/qiime/generated-files-20190512/ag.txt", package = "agp"))
 
+country_info = read_tsv(system.file(package="agp", "data-raw/countryInfo.txt"), comment = "#", col_names = FALSE, na = "") %>%
+  select(X5,X9) %>%
+  dplyr::rename(country="X5", continent="X9" )
+
 ```
 
 
-
+load genus abundance
 ```{r}
 
 genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
@@ -31,25 +35,30 @@ genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rowname
 ```
 
 
-
+normalize genus abundance
 ```{r}
-
 genus %>%
   #select(1:10) %>%
   mutate_at(-1, ~./sum(.)) -> genus_prop
 
 
-genus_prop %>%
-  tibble::column_to_rownames("taxa") %>%
-  BiotypeR::noise.removal(percent=1) %>%
-  row.names() -> genus_select
+# genus_prop %>%
+#   tibble::column_to_rownames("taxa") %>%
+#   BiotypeR::noise.removal(percent=1) %>%
+#   row.names() -> genus_select
 
 
 # genus_prop %>%
 #   tibble::rownames_to_column("taxa") %>%
 #   filter(taxa %in% genus_select) %>%
 #   reshape2::melt(id.vars="taxa")
-  
+```
+
+select the top 10 genus for adult and child
+
+> I remove unclassified genera
+
+```{r}
 
 top_genus_mass = 
   genus_prop %>% 
@@ -57,55 +66,60 @@ top_genus_mass =
   as.matrix %>% 
   apply(1,sum) %>% 
   sort %>% rev %>% head(50)
-  
 
-top_genus_prevalence = 
-  genus_prop %>% 
-  tibble::column_to_rownames("taxa") %>% 
-  as.matrix %>% (function(x){x > 0}) %>% 
-  apply(1,sum) %>% 
-  sort %>% rev %>% head(50)
 
-Human_microbiota_genus_core = 
-merge(top_genus_mass %>% as.matrix %>% as.data.frame,
-      top_genus_prevalence %>% as.matrix %>% as.data.frame,
-      by="row.names") %>% 
-  arrange(desc(V1.x)) %>%
-  tidyr::separate(Row.names, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
-  filter(Genus != "g__" & Genus != "__" & Genus != "g__[Ruminococcus]") %>%
-  head(20) %>%
-  dplyr::rename(Mass="V1.x", Prevalence="V1.y") %>%
-  mutate(Mass=Mass/  (dim(genus_prop)[2]-1), Prevalence=Prevalence/(dim(genus_prop)[2]-1) )
-  
+genus_prop %>%
+  filter(taxa %in% c(top_genus_mass %>% names())) %>%
+  dplyr::rename(Genus = "taxa") %>%
+  #select(1:20) %>%
+  #tidyr::separate(taxa, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  #select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  #mutate(Genus = Genus %>% gsub("g__","",.)) %>%
+  reshape2::melt(id.vars="Genus") -> top_genus_prop_value_50
 
-Human_microbiota_genus_core %>%
-  tidyr::unite("taxa", c("Kingdom","Phylum","Class","Order","Family","Genus"),sep=";") %>%
-  pull(taxa) %>% writeLines(con="genus_top_20.txt")
+metadata %>%
+  select("#SampleID","age_cat","age_corrected","sex","country_of_birth","country") %>%
+  merge(top_genus_prop_value_50, by.x="#SampleID", by.y="variable") -> top_genus_prop_value_metadata
 
-  
+#top_genus_prop_value_metadata$age_cat %>% table 
+
+top_genus_prop_value_metadata %>%
+  filter(!is.na(age_cat), age_cat!="Not provided") %>%
+  mutate(Adult=ifelse(age_cat %in% c("baby","teen","child"),"Child","Adult")) %>%
+  filter(Genus != "__") %>% 
+  group_by(Adult,Genus) %>% 
+  summarise(mass=sum(value)) %>%
+  reshape2::dcast(Genus~Adult) %>%
+  mutate_at(2:3, ~./(sum(.))) %>%
+  mutate(Adult=rank(-Adult),Child=rank(-Child)) %>%
+  filter(Adult <= 10 | Child <= 10) %>%
+  arrange(Adult) %>%
+  filter(!(Genus %in% c("k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__;g__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__"))) %>%
+  pull(Genus) -> top_10_genus
+
+writeLines(top_10_genus, con = "genus_top_10.txt")
+
+ 
 ```
 
 
-```{r}
-Human_microbiota_genus_core %>%
-  tidyr::unite("taxa", c("Kingdom","Phylum","Class","Order","Family","Genus"),sep=";") %>%
-  pull(taxa) -> genus_top_20
+vizualise top 10 genus median abundance
 
-
-genus_prop %>%
-  filter(taxa %in% genus_top_20) %>%
-  #select(1:20) %>%
-  tidyr::separate(taxa, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
-  select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
-  mutate(Genus = Genus %>% gsub("g__","",.)) %>%
-  reshape2::melt(id.vars="Genus") %>%
-  ggplot() + geom_boxplot(aes(x=Genus,y=value+0.0001)) + 
-  coord_flip() + scale_y_log10(labels = scales::percent) + 
-  ylab("Relative abundance") + xlab("Microbiota genus")
+```{r fig.height=3, fig.width=6}
+# genus_prop %>%
+#   filter(taxa %in% top_10_genus) %>%
+#   #select(1:20) %>%
+#   tidyr::separate(taxa, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+#   select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+#   mutate(Genus = Genus %>% gsub("g__","",.)) %>%
+#   reshape2::melt(id.vars="Genus") %>%
+#   ggplot() + geom_boxplot(aes(x=Genus,y=value+0.0001)) + 
+#   coord_flip() + scale_y_log10(labels = scales::percent) + 
+#   ylab("Relative abundance") + xlab("Microbiota genus")
   
 
 genus_prop %>%
-  filter(taxa %in% genus_top_20) %>%
+  filter(taxa %in% top_10_genus) %>%
   #select(1:20) %>%
   tidyr::separate(taxa, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
   select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
@@ -118,49 +132,24 @@ genus_prop %>%
   ylab("Relative abundance") + xlab("Microbiota genus")
 ```
 
+visualise top 10 genera throught age and sex
 
-
-```{r}
-genus_prop %>%
-  filter(taxa %in% genus_top_20) %>%
-  #select(1:20) %>%
-  tidyr::separate(taxa, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+```{r fig.height=4, fig.width=10}
+  
+top_genus_prop_value_metadata %>%
+  filter(Genus %in% top_10_genus) %>%
+  tidyr::separate(Genus, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
   select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
   mutate(Genus = Genus %>% gsub("g__","",.)) %>%
-  reshape2::melt(id.vars="Genus") -> top_genus_prop_value
-
-
-metadata %>%
-  select("#SampleID","age_cat","age_corrected","sex","country_of_birth","country") %>%
-  merge(top_genus_prop_value, by.x="#SampleID", by.y="variable") -> top_genus_prop_value_metadata
-  
-  
-top_genus_prop_value %>% head
-```
-
-
-
-```{r fig.height=10, fig.width=10}
-  
-top_genus_prop_value_metadata %>%
-  filter(Genus=="Bifidobacterium") %>%
-  ggplot + geom_boxplot(aes(x=age_cat,y=value)) + scale_y_log10()
-
-
-top_genus_prop_value_metadata %>%
-  filter(Genus=="Bifidobacterium") %>%
-  ggplot + geom_point(aes(x=as.numeric(age_corrected),y=value+0.0001)) + scale_y_log10()
-
-
-top_genus_prop_value_metadata %>%
-  group_by(age_cat,Genus) %>%
+  filter(sex %in% c("male","female")) %>%
+  group_by(age_cat,Genus,sex) %>%
   summarise(value=median(value)) %>%
   filter(!is.na(age_cat) & age_cat != "Not provided") %>%
   ungroup() %>%
   mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
-  ggplot + geom_point(aes(y=value+0.0001,x=age_cat), stat="identity") + 
-  geom_line(aes(y=value+0.0001,x=age_cat,group=Genus)) + 
-  facet_wrap(~Genus, scale="free",nrow=5) + 
+  ggplot + geom_point(aes(y=value+0.0001,x=age_cat,color=sex), stat="identity") + 
+  geom_line(aes(y=value+0.0001,x=age_cat,group=paste0(Genus,sex), color=sex)) + 
+  facet_wrap(~Genus, scale="free",nrow=2) + 
   coord_flip() + scale_y_log10(labels = scales::percent) + xlab("") + ylab("")
 
 
@@ -170,82 +159,334 @@ top_genus_prop_value_metadata %>%
 
 ```
 
-```{r fig.height=10, fig.width=10}
+top 10 genus trought age and continent
+
+```{r fig.height=8, fig.width=12}
+
+library(ggridges)
+
+metadata %>%
+  select(1,country_of_birth) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  group_by(continent) %>%
+  summarise(n=n())
+
 top_genus_prop_value_metadata %>%
-  group_by(sex,Genus) %>%
-  summarise(value=median(value)) %>%
-  filter(!is.na(sex) & sex != "other" & sex != "unspecified" & sex != "Not provided") %>%
-  ungroup() %>%
+  filter(Genus %in% top_10_genus) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  tidyr::separate(Genus, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  mutate(Genus = Genus %>% gsub("g__","",.)) %>%
+  #filter(sex %in% c("male","female")) %>%
+  #group_by(age_cat,Genus) %>%
+  #summarise(value=median(value)) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") %>%
+  #filter(country_of_birth %in% c("United States","United Kingdom")) %>%
+  #ungroup() %>%
+  mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
+  ggplot + 
+  geom_density_ridges_gradient(aes(x=log10(value + 10^-4), y=age_cat, fill=..x..)) + 
+  scale_fill_viridis_c() +
+  #geom_point(aes(y=value+0.0001,x=age_cat,color=sex), stat="identity") + 
+  #geom_line(aes(y=value+0.0001,x=age_cat,group=paste0(Genus,sex), color=sex)) + 
+  facet_grid(continent~Genus, scale="free_x") + 
+  xlab("") + ylab("")
+
+
+top_genus_prop_value_metadata %>%
+  filter(Genus %in% top_10_genus) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  tidyr::separate(Genus, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  mutate(Genus = Genus %>% gsub("g__","",.)) %>%
+  #filter(sex %in% c("male","female")) %>%
+  #group_by(age_cat,Genus) %>%
+  #summarise(value=median(value)) %>%
+  #filter(!is.na(age_cat) & age_cat != "Not provided") %>%
+  #filter(country_of_birth %in% c("United States","United Kingdom")) %>%
+  #ungroup() %>%
   #mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
-  ggplot + geom_bar(aes(y=value+0.0001,x=sex), stat="identity") + 
-  #geom_line(aes(y=value+0.0001,x=sex,group=Genus)) + 
-  facet_wrap(~Genus, nrow=5) + 
-  coord_flip() +  xlab("") + ylab("")
+  ggplot + 
+  geom_density_ridges_gradient(aes(x=log10(value + 10^-3),y="y", fill=..x..)) + 
+  scale_fill_viridis_c() +
+  #geom_point(aes(y=value+0.0001,x=age_cat,color=sex), stat="identity") + 
+  #geom_line(aes(y=value+0.0001,x=age_cat,group=paste0(Genus,sex), color=sex)) + 
+  facet_grid(continent~Genus, scale="free_x") + 
+  xlab("") + ylab("") + xlim(-4,0)
+
+
+```
+
+evaluate top 10 genus read mass per age and continent
+
+```{r}
+
+
+
+top_genus_prop_value_metadata %>%
+  filter(Genus %in% top_10_genus) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  tidyr::separate(Genus, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  mutate(Genus = Genus %>% gsub("g__","",.)) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") %>%
+  mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
+  group_by(`#SampleID`,country_of_birth,age_cat) %>%
+  summarise(mass=sum(value)) %>%
+  group_by(age_cat) %>%
+  summarise(mass=median(mass))
+
+
+top_genus_prop_value_metadata %>%
+  filter(Genus %in% top_10_genus) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  tidyr::separate(Genus, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  mutate(Genus = Genus %>% gsub("g__","",.)) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") %>%
+  mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
+  filter(age_cat %in% c("20s","30s","40s","50s")) %>%
+  group_by(`#SampleID`,country_of_birth,continent, age_cat) %>%
+  summarise(mass=sum(value)) %>%
+  group_by(continent) %>%
+  summarise(mass=median(mass))
+
+
+
+
+```
+
+pull out individual with low top 10 read mass
+```{r}
+
+
+top_genus_prop_value_metadata %>%
+  filter(!is.na(age_cat), age_cat!="Not provided") %>%
+  mutate(Adult=ifelse(age_cat %in% c("baby","teen","child"),"Child","Adult")) %>%
+  #filter(Genus != "__") %>% 
+  group_by(Adult,Genus) %>% 
+  summarise(mass=sum(value)) %>%
+  reshape2::dcast(Genus~Adult) %>%
+  mutate_at(2:3, ~./(sum(.))) %>%
+  mutate(Adult=rank(-Adult),Child=rank(-Child)) %>%
+  filter(Adult <= 10 | Child <= 10) %>%
+  arrange(Adult) %>%
+  #filter(!(Genus %in% c("k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__;g__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__"))) %>%
+  pull(Genus) -> top_12_genus
+
+
+
+top_genus_prop_value_metadata %>%
+  filter(Genus %in% top_12_genus) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  tidyr::separate(Genus, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  mutate(Genus = Genus %>% gsub("g__","",.)) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") %>%
+  mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
+  group_by(`#SampleID`,country_of_birth,age_cat) %>%
+  summarise(mass=sum(value)) %>% ggplot() + geom_histogram(aes(x=mass))
+  filter(mass<0.25) %>% pull(`#SampleID`) -> microbiota_outliers
+  
+
+metadata %>%
+  #filter(`#SampleID` %in% microbiota_outliers) %>%
+  pull(subset_antibiotic_history) %>% table %>% prop.table
+
+#metadata 
+
+top_genus_prop_value_metadata %>%
+  filter(Genus %in% top_12_genus) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  tidyr::separate(Genus, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  mutate(Genus = Genus %>% gsub("g__","",.)) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") %>%
+  mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
+  group_by(`#SampleID`) %>%
+  summarise(mass=sum(value)) %>%
+  select(1,mass) -> sample_read_mass
+
 
 
 ```
 
 
+
+import pcoa coordinates (unweighted unifrac)
 ```{r}
 
+url="data-raw/qiime/generated-files-20190512/beta/pcoa/b50e69a1-9732-4323-9541-8324e1715a7a/data/ordination.txt" #unweighted
+url="data-raw/qiime/generated-files-20190512/beta/pcoa/d3048346-f38b-4797-9fb3-bd4166d5028d/data/ordination.txt" #weighted
+
 pcoa=
-readLines(system.file("data-raw/qiime/generated-files-20190512/beta/pcoa/d3609a45-53a8-40e1-b731-812b8127903b/data/ordination.txt", package="agp"))[-c(1:10)] %>% 
+readLines(system.file(url, package="agp"))[-c(1:10)] %>% 
   as.matrix %>% as.data.frame %>% tidyr::separate("V1", into=as.character(1:11), sep="\t") %>%
   select(1:3) %>%
   dplyr::rename(sampleID="1",pcoa1="2",pcoa2="3")
 
 
-top_genus_prop_value %>%
-  #reshape2::dcast(variable~Genus, fun.aggregate = mean) %>%
-  merge(pcoa %>% mutate(pcoa1=as.numeric(pcoa1),pcoa2=as.numeric(pcoa2)) , by.x="variable", by.y="sampleID") %>%
+top_genus_prop_value_metadata %>%
+  filter(Genus %in% top_10_genus) %>%
+  tidyr::separate(Genus, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  mutate(Genus = Genus %>% gsub("g__","",.)) %>% 
+  merge(pcoa %>% mutate(pcoa1=as.numeric(pcoa1),pcoa2=as.numeric(pcoa2)) , by.x="#SampleID", by.y="sampleID") %>%
   merge( 
           metadata %>%
   select("#SampleID","age_cat","age_corrected","sex","country_of_birth","country") %>% unique,
   
-  by.x="variable", by.y="#SampleID"
+  by.x="#SampleID", by.y="#SampleID"
   
           )  -> test
+```
+
+
+top 10 genus vs PCoA
+```{r}
+test %>%
+  ggplot + geom_hex(aes(value,pcoa1)) + scale_color_viridis_c()  + facet_wrap(~Genus)
 
 test %>%
-  ggplot + geom_point(aes(value,pcoa1)) + scale_color_viridis_c()  + facet_wrap(~Genus)
+  ggplot + geom_hex(aes(value,pcoa2)) + scale_color_viridis_c()  + facet_wrap(~Genus)
+```
 
 
+```{r}
+test %>%
+  ggplot + geom_point(aes(pcoa1, pcoa2, color=log10(value+0.0001) ), size=1) +  facet_wrap(~Genus) + scale_color_viridis_c() 
+
+# 
+# test %>%
+#   ggplot + geom_point(aes(pcoa1, pcoa2, color=log10(value+0.0001) ), size=1) +  facet_grid(age_cat.x~Genus) + scale_color_viridis_c()
+```
 
 
+PCoA bins vs age average
+```{r}
+test %>%
+  filter(Genus=="Bifidobacterium") %>%
+  ggplot(aes(pcoa1, pcoa2, z=as.numeric(age_corrected.x))) + 
+  stat_summary_hex(bins = 50) + 
+    scale_fill_viridis_c("Age mean") + theme_void()
+```
 
-top_genus_prop_value %>%
-  reshape2::dcast(variable~Genus, fun.aggregate = mean) %>%
-  merge(pcoa %>% mutate(pcoa1=as.numeric(pcoa1),pcoa2=as.numeric(pcoa2)) , by.x="variable", by.y="sampleID") %>%
+
+```{r}
+test %>%
+  filter(Genus=="Bifidobacterium") %>%
+  mutate(outliers = ifelse(`#SampleID` %in% microbiota_outliers,"outliers","ok")) %>%
+  merge(sample_read_mass, by="#SampleID") %>%
+  ggplot(aes(pcoa1, pcoa2)) + 
+  geom_point(aes(col=mass), alpha=0.5) + #facet_wrap(~outliers) +
+  scale_color_viridis_c("phylogenetic core\nmass")
+
+
+top_genus_mass = 
+  genus_prop %>% 
+  tibble::column_to_rownames("taxa") %>% 
+  as.matrix %>% 
+  apply(1,sum) %>% 
+  sort %>% rev %>% head(100)
+
+
+genus_prop %>%
+  filter(taxa %in% c(top_genus_mass %>% names())) %>%
+  dplyr::rename(Genus = "taxa") %>%
+  #select(1:20) %>%
+  #tidyr::separate(taxa, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  #select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  #mutate(Genus = Genus %>% gsub("g__","",.)) %>%
+  reshape2::melt(id.vars="Genus") -> top_genus_prop_value_100
+
+metadata %>%
+  select("#SampleID","age_cat","age_corrected","sex","country_of_birth","country") %>%
+  merge(top_genus_prop_value_100, by.x="#SampleID", by.y="variable") -> top_genus_prop_value_metadata
+
+ 
+top_genus_prop_value_metadata %>%
+  #filter(Genus %in% top_10_genus) %>%
+  tidyr::separate(Genus, into=c("Kingdom","Phylum","Class","Order","Family","Genus"), sep=";") %>%
+  select(-c("Kingdom","Phylum","Class","Order","Family")) %>%
+  mutate(Genus = Genus %>% gsub("g__","",.)) %>% 
+  merge(pcoa %>% mutate(pcoa1=as.numeric(pcoa1),pcoa2=as.numeric(pcoa2)) , by.x="#SampleID", by.y="sampleID") %>%
   merge( 
           metadata %>%
   select("#SampleID","age_cat","age_corrected","sex","country_of_birth","country") %>% unique,
   
-  by.x="variable", by.y="#SampleID"
+  by.x="#SampleID", by.y="#SampleID"
   
-          )  %>%
-  ggplot + geom_point(aes(pcoa1, pcoa2, color=log10(Bifidobacterium+0.0001) )) + scale_color_viridis_c() 
+          )  -> test
+          
 
-
-
-
-pcoa %>%
-  mutate(pcoa1=as.numeric(pcoa1),pcoa2=as.numeric(pcoa2)) %>%
-  merge( 
-          metadata %>%
-  select("#SampleID","age_cat","age_corrected","sex","country_of_birth","country") %>% unique,
-  
-  by.x="sampleID", by.y="#SampleID"
-  
-          ) %>%
-   mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
-  filter(!is.na(age_cat) & age_cat != "Not provided") %>%
-  ggplot + geom_point(aes(pcoa1,pcoa2,color=age_cat)) + scale_color_viridis_d() + facet_wrap(~age_cat)
-  
-
-  metadata$sample_type %>% table  
-
+test %>%
+  ungroup() %>%
+  group_by(Genus) %>%
+  summarise(cor1=cor(value,pcoa1, method="spearman"), cor2=cor(value, pcoa2, method="spearman")) %>%
+  arrange(desc(cor2))
 
 
 
 ```
+
+export outliers
+```{r}
+
+test %>%
+  filter(Genus %in% c("Acinetobacter","Pseudomonas","Stenotrophomonas")) %>%
+  mutate(outliers = ifelse(`#SampleID` %in% microbiota_outliers,"outliers","ok")) %>%
+  ggplot(aes(pcoa1, pcoa2)) + geom_point(aes(col=value)) + facet_grid(outliers~Genus) 
+
+test %>%
+  filter(Genus %in% c("Acinetobacter","Pseudomonas","Stenotrophomonas")) %>%
+  mutate(outliers = ifelse(`#SampleID` %in% microbiota_outliers,"outliers","ok")) %>%
+  ggplot(aes(Genus, value+0.0001)) + geom_boxplot(aes(fill=outliers)) + scale_y_log10()
+
+test %>%
+  filter(Genus %in% c("Acinetobacter","Pseudomonas","Stenotrophomonas")) %>%
+  mutate(outliers = ifelse(`#SampleID` %in% microbiota_outliers,"outliers","ok")) %>%
+  filter(value>0.01 | outliers=="outliers") %>%
+  #filter(outliers=="outliers") %>%
+  pull(`#SampleID`) %>% unique %>% writeLines(con="outliers_samples.txt")
+
+
+
+test %>%
+  #filter(Genus=="Bifidobacterium") %>%
+  #mutate(outliers = ifelse(`#SampleID` %in% microbiota_outliers,"outliers","ok")) %>%
+  merge(sample_read_mass, by="#SampleID") %>%
+  group_by(Genus) %>%
+  summarise(cor_mass=cor(value,mass, method="pearson")) %>%
+  arrange((cor_mass))
+
+
+```
+
+
+
+```{r}
+
+outliers = readLines(con="outliers_samples.txt")
+
+
+test %>%
+  filter(Genus %in% c("Acinetobacter","Pseudomonas","Stenotrophomonas")) %>%
+  mutate(outliers = ifelse(`#SampleID` %in% outliers,"outliers","ok")) %>%
+  ggplot(aes(Genus, value+0.0001)) + geom_boxplot(aes(fill=outliers)) + scale_y_log10()
+
+
+test %>%
+  filter(Genus=="Bifidobacterium") %>%
+  mutate(outliers = ifelse(`#SampleID` %in% outliers,"outliers","ok")) %>%
+  merge(sample_read_mass, by="#SampleID") %>%
+  ggplot(aes(pcoa1, pcoa2)) + 
+  geom_point(aes(col=mass), alpha=0.5) + facet_wrap(~outliers) +
+  scale_color_viridis_c("phylogenetic core\nmass")
+
+```
+
+
+
+
+
 
