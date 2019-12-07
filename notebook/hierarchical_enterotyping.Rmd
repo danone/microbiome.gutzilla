@@ -1,0 +1,139 @@
+---
+title: "hierarchical enterotyping"
+output: html_notebook
+---
+
+
+
+load genus abundance
+```{r}
+
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+
+genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+
+```
+
+
+```{r}
+outliers = readLines(con="outliers_samples.txt")
+
+metadata %>% 
+  filter(!(`#SampleID` %in% outliers)) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  select(`#SampleID`,age_cat,sex, continent,country_of_birth) %>% 
+  filter(sex %in% c("male","female")) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") %>%
+  group_by(age_cat,sex,continent) %>% 
+  sample_n(size=30, replace=TRUE) %>%
+  unique() %>% pull(`#SampleID`) -> samples_id_select
+  #summarise(n=n())
+
+length(samples_id_select)
+
+
+metadata %>% 
+  filter(`#SampleID` %in% samples_id_select) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  select(`#SampleID`,age_cat,sex, continent,country_of_birth) %>% 
+  filter(sex %in% c("male","female")) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") -> metadata_select
+  #with(., xtabs(~continent+age_cat, data=.))
+
+
+top_genus_mass = 
+  genus_prop %>% 
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% 
+  as.matrix %>% 
+  apply(1,sum) %>% 
+  sort %>% rev %>% head(30)
+
+# genus_prop %>% 
+#   select(-outliers) %>%
+#   filter(taxa %in% names(top_genus_mass)) %>%
+#   summarise_at(-1, sum) %>% t %>% hist()
+
+
+genus %>%
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus
+
+
+```
+
+
+
+```{r}
+
+genus=genus[,colnames(genus) %in% samples_id_select]
+source("../R/enterotyping.R")
+
+```
+
+
+```{r fig.height=6, fig.width=12}
+
+heatmapdmn(t(genus),fit_genus_list[[1]][[1]],fit_genus_list[[1]][[best_genus_lplc]])
+
+###################################################
+### code chunk number 11: posterior-mean-diff
+###################################################
+p0 <- fitted(fit_genus_list[[1]][[1]], scale=TRUE)     # scale by theta
+pbest <- fitted(fit_genus_list[[1]][[best_genus_lplc]], scale=TRUE)
+colnames(pbest) <- paste("m", 1:best_genus_lplc, sep="")
+(meandiff <- colSums(abs(pbest - as.vector(p0))))
+sum(meandiff)
+
+
+###################################################
+### code chunk number 12: table-1
+###################################################
+diff <- rowSums(abs(pbest - as.vector(p0)))
+o <- order(diff, decreasing=TRUE)
+cdiff <- cumsum(diff[o]) / sum(diff)
+df <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 10)
+df %>% as.data.frame()
+
+df %>% as.data.frame() %>%
+  tibble::rownames_to_column("taxa") %>%
+  reshape2::melt(id.vars="taxa") %>%
+  filter(!variable %in% c("Mean","diff","cdiff")) %>%
+  #group_by(taxa) %>%
+  #mutate(total = sum(value)) %>%
+  #mutate(value=value/total) %>%
+  ggplot() + geom_tile(aes(x=variable,y=taxa,fill=value)) + scale_fill_viridis_c()
+
+```
+
+
+```{r}
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  group_by(continent) %>%
+  mutate(total=n()) %>%
+  group_by(continent,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=continent,fill=prop)) + scale_fill_viridis_c()
+
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  filter(age_cat != "baby") %>%
+  group_by(age_cat) %>%
+  mutate(total=n()) %>%
+  group_by(age_cat,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ungroup() %>%
+  group_by(Enterotypes_id) %>%
+  mutate(prop2=sum(prop)) %>%
+  mutate(prop=prop/prop2) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=age_cat,fill=prop)) + scale_fill_viridis_c()
+
+
+```
+
