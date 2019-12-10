@@ -1,0 +1,322 @@
+---
+title: "diet vs enterotypes"
+output: html_notebook
+---
+
+```{r}
+
+library(tidyverse)
+library(purrr)
+devtools::load_all()  
+
+```
+
+
+```{r}
+metadata = readr::read_tsv(system.file("data-raw/qiime/generated-files-20190512/ag.txt", package = "agp"))
+
+country_info = read_tsv(system.file(package="agp", "data-raw/countryInfo.txt"), comment = "#", col_names = FALSE, na = "") %>%
+  select(X5,X9) %>%
+  dplyr::rename(country="X5", continent="X9" )
+
+enterotypes= read.table("enterotypes_12.txt")
+
+# vioscreen_dict = readr::read_csv(system.file("data-raw/data_dictionary.csv", package = "agp"))
+
+enterotypes_prediction_set = read.csv2("enterotypes_all_set.csv", row.names=1, check.names = FALSE)
+
+vioscreen_foods = read_tsv(system.file("data-raw/vioscreen/vioscreen_foods_consumed_frequency_units_per_year.tsv", package = "agp"))
+
+
+
+```
+
+with nutrient
+
+```{r}
+
+metadata %>%
+  select(`#SampleID`,contains("vioscreen")) %>%
+  filter(vioscreen_hei_score!="Not provided", !is.na(vioscreen_hei_score)) %>% 
+  merge(enterotypes_prediction_set, by="#SampleID") -> enterotypes_vioscreen
+  
+enterotypes_vioscreen %>% 
+  ggplot() + geom_boxplot(aes(x=as.character(Enterotypes_id),y=as.numeric(vioscreen_hei_score)))
+
+
+
+enterotypes_vioscreen %>%
+  reshape2::melt(id.vars=c("#SampleID","Enterotypes_id","set")) %>%
+  filter(!is.na(value)) %>%
+  mutate(value=as.numeric(value)) %>%
+  group_by(variable) %>%
+  do(with(., summary(.$value) %>% broom::tidy())) %>%
+  filter(is.na(minimum)) %>% pull(variable) %>% as.character -> vioscreen_to_remove
+  
+  enterotypes_vioscreen %>%
+  reshape2::melt(id.vars=c("#SampleID","Enterotypes_id","set")) %>%
+  mutate(value=as.numeric(value)) %>%
+  filter(!(variable %in% vioscreen_to_remove)) %>%  
+  nest(-variable) %>% 
+  mutate(
+    test = map(data, ~ kruskal.test(.x$value, .x$Enterotypes_id %>% as.character  )), # S3 list-col
+    tidied = map(test, broom::tidy)
+  ) %>% 
+  unnest(tidied, .drop = TRUE) %>%
+    arrange(p.value) %>%
+    mutate(fdr=p.adjust(p.value,method="fdr")) -> vioscreen_test
+
+# vioscreen_test %>%
+#   merge(vioscreen_dict %>% mutate(variable=paste0("vioscreen_",column_name)), by="variable")
+# 
+# vioscreen_dict
+  
+vioscreen_test[1:30,] %>% pull(variable)  
+  
+```
+
+
+```{r}
+
+enterotypes_vioscreen %>% 
+  ggplot() + geom_boxplot(aes(x=as.character(Enterotypes_id),y=as.numeric(vioscreen_rgrain)))
+
+enterotypes_vioscreen %>% 
+  ggplot() + geom_boxplot(aes(x=as.character(Enterotypes_id),y=as.numeric(vioscreen_hei2010_refined_grains)))
+
+
+enterotypes_vioscreen %>% 
+  ggplot() + geom_boxplot(aes(x=as.character(Enterotypes_id),y=as.numeric(vioscreen_coumest)))
+
+enterotypes_vioscreen %>% 
+  ggplot() + geom_boxplot(aes(x=as.character(Enterotypes_id),y=as.numeric(vioscreen_v_orange)%>% log10))
+
+
+enterotypes_vioscreen %>% 
+  ggplot() + geom_boxplot(aes(x=as.character(Enterotypes_id),y=as.numeric(vioscreen_alcohol_servings)))
+
+
+
+
+```
+
+
+
+```{r fig.height=10, fig.width=10}
+
+enterotypes_vioscreen %>%
+  select(vioscreen_test[1:30,] %>% pull(variable) %>% as.character) %>%
+  mutate_all(as.numeric) %>%
+  cor(method="spearman") -> vioscreen_cor_test
+
+vioscreen_cor_test  %>%  heatmap()
+
+reorder_cormat <- function(cormat){
+# Utiliser la corrélation entre les variables
+  # comme mésure de distance
+dd <- as.dist((1-cormat)/2)
+hc <- hclust(dd)
+cormat <-cormat[hc$order, hc$order]
+}
+
+
+# Obtenir le triangle inférieur
+  get_lower_tri<-function(cormat){
+    cormat[upper.tri(cormat)] <- NA
+    return(cormat)
+  }
+  # Obtenir le triangle supérieur
+  get_upper_tri <- function(cormat){
+    cormat[lower.tri(cormat)]<- NA
+    return(cormat)
+  }
+
+vioscreen_cor_test <- reorder_cormat(vioscreen_cor_test)
+upper_tri <- get_upper_tri(vioscreen_cor_test)
+# Fondre la matrice de corrélation
+melted_cormat <- reshape2::melt(upper_tri, na.rm = TRUE)
+# Créer un ggheatmap
+ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab",
+   name="spearman\nCorrelation") +
+  theme_minimal()+ # minimal theme
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+# Afficher heatmap
+print(ggheatmap)
+
+
+
+```
+
+
+# with food
+
+```{r}
+
+vioscreen_foods = read.table(system.file("data-raw/vioscreen/vioscreen_foods_consumed_frequency_units_per_year.tsv", package = "agp"), row.names=1, header=TRUE, comment.char = "") %>% tibble::rownames_to_column("#SampleID")
+
+vioscreen_foods %>% head
+
+vioscreen_foods %>% 
+  merge(enterotypes_prediction_set, by="#SampleID") -> enterotypes_vioscreen_foods
+
+
+enterotypes_vioscreen_foods %>% 
+  reshape2::melt(id.vars=c("#SampleID","Enterotypes_id","survey_id","set")) %>%
+  filter(!is.na(value)) %>%
+  mutate(value=as.numeric(value)) %>%
+  group_by(variable) %>%
+  do(with(., summary(.$value) %>% broom::tidy())) %>%
+  filter(is.na(minimum)) %>% pull(variable) %>% as.character -> vioscreen_to_remove
+  
+enterotypes_vioscreen_foods %>%
+  reshape2::melt(id.vars=c("#SampleID","Enterotypes_id","survey_id","set")) %>%
+  mutate(value=as.numeric(value)) %>%
+  filter(!(variable %in% vioscreen_to_remove)) %>%  
+  nest(-variable) %>% 
+  mutate(
+    test = map(data, ~ kruskal.test(.x$value, .x$Enterotypes_id %>% as.character  )), # S3 list-col
+    tidied = map(test, broom::tidy)
+  ) %>% 
+  unnest(tidied, .drop = TRUE) %>%
+    arrange(p.value) %>%
+    mutate(fdr=p.adjust(p.value,method="fdr")) -> vioscreen_foods_test
+
+```
+
+
+```{r fig.height=10, fig.width=15}
+
+enterotypes_vioscreen_foods %>%
+  select(vioscreen_foods_test[1:150,] %>% pull(variable) %>% as.character) %>%
+  mutate_all(as.numeric) %>%
+  cor(method="spearman") -> vioscreen_foods_cor_test
+
+#vioscreen_foods_cor_test  %>%  heatmap()
+
+reorder_cormat <- function(cormat){
+# Utiliser la corrélation entre les variables
+  # comme mésure de distance
+dd <- as.dist((1-cormat)/2)
+hc <- hclust(dd)
+cormat <-cormat[hc$order, hc$order]
+}
+
+
+# Obtenir le triangle inférieur
+  get_lower_tri<-function(cormat){
+    cormat[upper.tri(cormat)] <- NA
+    return(cormat)
+  }
+  # Obtenir le triangle supérieur
+  get_upper_tri <- function(cormat){
+    cormat[lower.tri(cormat)]<- NA
+    return(cormat)
+  }
+
+vioscreen_foods_cor_test <- reorder_cormat(vioscreen_foods_cor_test)
+upper_tri <- get_upper_tri(vioscreen_foods_cor_test)
+# Fondre la matrice de corrélation
+melted_cormat <- reshape2::melt(upper_tri, na.rm = TRUE)
+# Créer un ggheatmap
+ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab",
+   name="spearman\nCorrelation") +
+  theme_minimal()+ # minimal theme
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+# Afficher heatmap
+print(ggheatmap + theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()))
+
+
+```
+
+
+```{r}
+
+hist(log10(enterotypes_vioscreen_foods$All_tea+1))
+
+
+enterotypes_vioscreen_foods %>% dim
+
+enterotypes_vioscreen_foods %>% pull(Enterotypes_id) %>% table
+
+```
+
+
+```{r}
+
+library(LiblineaR)
+
+et=c("10","8")
+
+x=enterotypes_vioscreen_foods %>% filter(Enterotypes_id %in% et) %>% .[,as.character(vioscreen_foods_test[1:150,]$variable)] %>% select_if(~ !is.numeric(.) || sum(.) != 0)
+y=factor(paste0("m",enterotypes_vioscreen_foods %>% filter(Enterotypes_id %in% et) %>% .[,262] %>% as.character))
+train=sample(1:dim(enterotypes_vioscreen_foods %>% filter(Enterotypes_id %in% et) )[1],100)
+xTrain=x[train,]
+
+xTest=x[-train,]
+yTrain=y[train]
+yTest=y[-train]
+# Center and scale data
+s=scale(log10(xTrain+1),center=FALSE,scale=FALSE)
+# Find the best model with the best cost parameter via 10-fold cross-validations
+tryTypes=c(0:3,5:7)
+tryCosts=c(1000,1,0.001)
+#tryCosts = c(1)
+bestCost=NA
+bestAcc=0
+bestType=NA
+for(ty in tryTypes){
+for(co in tryCosts){
+acc=LiblineaR(data=s,target=yTrain,type=ty,cost=co,bias=1,cross=5,verbose=FALSE)
+cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
+if(acc>bestAcc){
+bestCost=co
+bestAcc=acc
+bestType=ty
+}
+}
+}
+cat("Best model type is:",bestType,"\n")
+cat("Best cost is:",bestCost,"\n")
+cat("Best accuracy is:",bestAcc,"\n")
+# Re-train best model with best cost value.
+m=LiblineaR(data=s,target=yTrain,type=bestType,cost=bestCost,bias=1,verbose=FALSE)
+# Scale the test data
+#s2=scale(log10(xTest+1),attr(s,"scaled:center"),attr(s,"scaled:scale"))
+s2=log10(xTest+1)
+# Make prediction
+pr=FALSE
+if(bestType==0 || bestType==7) pr=TRUE
+p=predict(m,s2,proba=pr,decisionValues=TRUE)
+# Display confusion matrix
+res=table(p$predictions,yTest)
+print(res)
+# Compute Balanced Classification Rate
+#BCR=mean(c(res[1,1]/sum(res[,1]),res[2,2]/sum(res[,2]),res[3,3]/sum(res[,3])#,
+           #res[4,4]/sum(res[,4]),res[5,5]/sum(res[,5]),res[6,6]/sum(res[,6]),
+           #res[7,7]/sum(res[,7]),res[8,8]/sum(res[,8]),res[9,9]/sum(res[,9]),
+           #res[10,10]/sum(res[,10]),res[11,11]/sum(res[,11],res[12,12]/sum(res[,12]))        
+#           ))
+   
+#print(BCR)
+#
+
+
+m$W %>% t %>% as.data.frame() %>% tibble::rownames_to_column("food") %>% arrange(desc(abs(V1))) 
+
+
+
+```
+
+
