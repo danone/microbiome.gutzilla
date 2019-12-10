@@ -36,7 +36,7 @@ length(samples_id_select)
 metadata %>% 
   filter(`#SampleID` %in% samples_id_select) %>%
   merge(country_info, by.x="country_of_birth", by.y="country") %>%
-  select(`#SampleID`,age_cat,sex, continent,country_of_birth) %>% 
+  select(`#SampleID`,age_cat,sex, continent,country_of_birth, bmi_cat,gluten,types_of_plants,diet_type  ) %>% 
   filter(sex %in% c("male","female")) %>%
   filter(!is.na(age_cat) & age_cat != "Not provided") -> metadata_select
   #with(., xtabs(~continent+age_cat, data=.))
@@ -70,6 +70,16 @@ genus %>%
 genus=genus[,colnames(genus) %in% samples_id_select]
 source("../R/enterotyping.R")
 
+save(fit_genus_list, file="fit_genus_list.rda")
+
+```
+
+
+```{r fig.height=3, fig.width=10}
+
+names(lplc) = as.character(1:5)
+as_tibble(lplc)  %>% tibble::rowid_to_column("k") %>% reshape2::melt(id.vars="k") %>% ggplot() + geom_line(aes(x=k,y=value,group=variable))
+
 ```
 
 
@@ -93,7 +103,7 @@ sum(meandiff)
 diff <- rowSums(abs(pbest - as.vector(p0)))
 o <- order(diff, decreasing=TRUE)
 cdiff <- cumsum(diff[o]) / sum(diff)
-df <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 10)
+df <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 30)
 df %>% as.data.frame()
 
 df %>% as.data.frame() %>%
@@ -133,6 +143,140 @@ metadata_select %>%
   mutate(prop2=sum(prop)) %>%
   mutate(prop=prop/prop2) %>%
   ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=age_cat,fill=prop)) + scale_fill_viridis_c()
+
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  filter(age_cat != "baby") %>%
+  filter(!is.na(bmi_cat), bmi_cat != "Not provided") %>%
+  group_by(bmi_cat) %>%
+  mutate(total=n()) %>%
+  group_by(bmi_cat,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ungroup() %>%
+  group_by(bmi_cat) %>%
+  mutate(prop2=sum(prop)) %>%
+  mutate(prop=prop/prop2) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=bmi_cat,fill=prop)) + scale_fill_viridis_c()
+
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  filter(age_cat != "baby") %>%
+  filter(!is.na(gluten), gluten != "Not provided") %>%
+  group_by(gluten) %>%
+  mutate(total=n()) %>%
+  group_by(gluten,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ungroup() %>%
+  group_by(gluten) %>%
+  mutate(prop2=sum(prop)) %>%
+  mutate(prop=prop/prop2) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=gluten,fill=prop)) + scale_fill_viridis_c()
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  filter(age_cat != "baby") %>%
+  filter(!is.na(types_of_plants), types_of_plants != "Not provided") %>%
+  group_by(types_of_plants) %>%
+  mutate(total=n()) %>%
+  group_by(types_of_plants,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ungroup() %>%
+  group_by(types_of_plants) %>%
+  mutate(prop2=sum(prop)) %>%
+  mutate(prop=prop/prop2) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=types_of_plants,fill=prop)) + scale_fill_viridis_c()
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  filter(age_cat != "baby") %>%
+  filter(!is.na(diet_type), diet_type != "Not provided") %>%
+  group_by(diet_type) %>%
+  mutate(total=n()) %>%
+  group_by(diet_type,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ungroup() %>%
+  group_by(diet_type) %>%
+  mutate(prop2=sum(prop)) %>%
+  mutate(prop=prop/prop2) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=diet_type,fill=prop)) + scale_fill_viridis_c()
+
+```
+
+
+to do: compute enterotype proportion for all categories and do a PCA analysis with minimal spanning tree
+
+
+```{r}
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  select(-country_of_birth,-sex,-gluten) %>%
+  reshape2::melt(id.vars=c("#SampleID","Enterotypes_id")) %>%
+  filter(!is.na(value), value != "Not provided") %>%
+  select(-variable, -`#SampleID`) %>%
+  group_by(Enterotypes_id,value) %>%
+  filter(!is.na(value)) %>%
+  #mutate(total=n()) %>%
+  #group_by(Enterotypes_id,value,total) %>%
+  #summarise(prop=n()) %>%
+  reshape2::dcast(Enterotypes_id~value) %>%
+  mutate_at(-1,~./(sum(.))) -> et_repartition
+
+et_repartition %>%
+  tibble::column_to_rownames("Enterotypes_id") %>%
+  apply(1,function(x) x/sum(x)) %>%
+  t %>%
+  as.data.frame %>%
+  ade4::dudi.pca(.,scan=F, nf=3) -> et_metadata_pca
+
+
+ade4::scatter(et_metadata_pca)
+
+ade4::s.label(et_metadata_pca$li, yax=2)
+
+```
+
+
+```{r fig.height=5, fig.width=12}
+
+df %>% as.data.frame() %>%
+  select(-diff,-cdiff,-Mean) %>%
+  mutate_at(1:12,~log10(.)) %>%
+  t %>%
+  as.data.frame %>%
+  ade4::dudi.pca(scannf = F,nf=3) %>% .$li %>% ade4::s.label()
+
+df %>% as.data.frame() %>%
+  select(-diff,-cdiff,-Mean) %>%
+  tibble::rownames_to_column("taxa") %>%
+  as_tibble %>%
+  .[c(1:4,14),] %>%
+  reshape2::melt(id.vars="taxa") %>%
+  group_by(variable) %>%
+  mutate(ymax=cumsum(value)) %>%
+  mutate(ymin=c(0, head(ymax, n=-1))) %>%
+  #ggplot() + geom_bar(aes(y=value,x=variable,fill=taxa),stat="identity") 
+  ggplot(aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=taxa %>% strsplit(x=.,split=";") %>% sapply(function(x)x[6])  )) + 
+  geom_rect() +      
+  coord_polar(theta="y") + 
+  facet_wrap(~variable) + 
+  xlim(c(2, 4)) + theme_void() +
+  scale_fill_brewer("",type="qual")
+
+
+
+```
+
+reclassify all dataset
+```{r}
+
+
 
 
 ```
