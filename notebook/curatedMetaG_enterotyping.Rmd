@@ -1,0 +1,77 @@
+---
+title: "curated Metagenomics data enterotyping"
+output: html_notebook
+---
+
+
+```{r}
+
+library(phyloseq)
+devtools::load_all()
+library(magrittr)
+
+
+```
+
+
+
+```{r}
+
+load(system.file("data-raw/curatedMetaG/curatedMetaGData.rda", package = "agp"))
+
+
+```
+
+
+
+```{r}
+
+df = otu_table(curatedMetaG_phyloseq) %>%
+  merge(tax_table(curatedMetaG_phyloseq), by="row.names")
+
+curatedMetaG_data = df
+
+save(curatedMetaG_data, file="curatedMetaG_data.rda")
+
+tax_table(curatedMetaG_phyloseq) %>% head
+
+```
+
+
+
+```{r}
+curatedMetaG_data %>%
+  group_by(Kingdom,Phylum,Class,Order,Family,Genus) %>%
+  select(-Row.names,-Species) %>%
+  summarise_all(sum) %>%
+  reshape2::melt(id.vars=c("Kingdom","Phylum","Class","Order","Family","Genus")) %>%
+  mutate(value=round(value*1000,0)) %>%
+  reshape2::dcast(Kingdom+Phylum+Class+Order+Family+Genus~variable) -> genus_count
+  
+
+genus_count %>% 
+  mutate(taxa=paste0("k__",Kingdom,";p__",Phylum,";c__",Class,";o__",Order,";f__",Family,";g__",Genus)) %>%
+  #select(taxa) %>%
+  filter(taxa %in% names(top_genus_mass)) %>% pull(taxa)
+```
+
+```{r}
+
+names(top_genus_mass)
+
+```
+
+
+
+```{r}
+genus_count %>% 
+  filter(Genus=="Dialister") 
+
+
+```
+
+
+```{r}
+```
+
+

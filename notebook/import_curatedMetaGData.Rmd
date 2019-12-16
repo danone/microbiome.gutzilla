@@ -1,0 +1,88 @@
+---
+title: "extract data from curated metagenomics data"
+output: html_notebook
+---
+
+
+
+```{r}
+
+library(phyloseq)
+library(curatedMetagenomicData)
+
+```
+
+
+```{r}
+
+joinWithRnames <- function(obj, FUN = I) {
+    mylist <- lapply(obj, function(x) {
+        df <- data.frame(FUN(x))
+        df$rnames28591436107 <- rownames(df)
+        return(df)
+    })
+    bigdf <- Reduce(full_join, mylist)
+    rownames(bigdf) <- make.names(bigdf$rnames28591436107)
+    bigdf <- bigdf[, !grepl("^rnames28591436107$", colnames(bigdf))]
+    return(bigdf)
+}
+
+## update
+source("https://raw.githubusercontent.com/waldronlab/presentations/master/Waldron_2016-06-07_EPIC/metaphlanToPhyloseq.R")
+
+
+
+```
+
+
+
+```{r}
+eh <- ExperimentHub()
+myquery <- query(eh, "curatedMetagenomicData")
+version <- "20170526."
+
+myquery.stool <- myquery[grepl("stool", myquery$title) & grepl("bugs", myquery$title) & grepl(version, myquery$title) & !grepl("VatanenT_2016", myquery$title) & !grepl("AsnicarF_2017", myquery$title), ]
+
+eset.list <- lapply(names(myquery.stool), function(x) myquery.stool[[x]])
+
+names(eset.list) <- gsub("-", "_", gsub(version, "", myquery.stool$title))
+
+for (i in 1:length(eset.list)) {
+    colnames(eset.list[[i]]) <- paste(names(eset.list)[[i]], colnames(eset.list[[i]]), sep = ".")
+    pData(eset.list[[i]]) <- pData(eset.list[[i]])[,!sapply(pData(eset.list[[i]]), function(x) all(is.na(x)))]
+    eset.list[[i]]$subjectID <- as.character(eset.list[[i]]$subjectID)
+}
+
+for (i in seq_along(eset.list)) {
+    eset.list[[i]] <- eset.list[[i]][grep("t__", rownames(eset.list[[i]]), invert = TRUE),]
+    eset.list[[i]] <- eset.list[[i]][grep("s__|_unclassified", rownames(eset.list[[i]]), perl = TRUE),]
+}
+
+pdat <- joinWithRnames(eset.list, FUN = pData)
+pdat$study <- sub("\\..+", "", rownames(pdat))
+ab <- joinWithRnames(eset.list, FUN = exprs)
+ab[is.na(ab)] <- 0
+eset <- ExpressionSet(assayData = as.matrix(ab), phenoData = AnnotatedDataFrame(pdat))
+
+## update
+pseq <- metaphlanToPhyloseq(tax = exprs(eset), metadat = pData(eset), split = ".")
+
+samp <- data.frame(sample_data(pseq))
+
+curatedMetaG_phyloseq = pseq
+curatedMetaG_metadata = samp
+
+
+```
+
+
+```{r}
+curatedMetaG_phyloseq = pseq
+curatedMetaG_metadata = samp
+
+save(curatedMetaG_phyloseq,curatedMetaG_metadata, file="curatedMetaGData.rda")
+
+
+```
+
+
