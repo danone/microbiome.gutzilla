@@ -1,0 +1,250 @@
+---
+title: "apply enterotyping models to all dataset"
+output: html_notebook
+---
+
+
+```{r}
+library(tidyselect)
+library(DirichletMultinomial)
+devtools::load_all()
+
+
+```
+
+
+
+load genus abundance
+```{r}
+
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+
+genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+
+```
+
+
+```{r}
+outliers = readLines(con="outliers_samples.txt")
+
+metadata %>% 
+  filter(!(`#SampleID` %in% outliers)) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  select(`#SampleID`,age_cat,sex, continent,country_of_birth) %>% 
+  filter(sex %in% c("male","female")) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") %>%
+  group_by(age_cat,sex,continent) %>% 
+  sample_n(size=30, replace=TRUE) %>%
+  unique() %>% pull(`#SampleID`) -> samples_id_select
+  #summarise(n=n())
+
+length(samples_id_select)
+
+
+metadata %>% 
+  filter(`#SampleID` %in% samples_id_select) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  select(`#SampleID`,age_cat,sex, continent,country_of_birth, bmi_cat,gluten,types_of_plants,diet_type  ) %>% 
+  filter(sex %in% c("male","female")) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") -> metadata_select
+  #with(., xtabs(~continent+age_cat, data=.))
+
+
+top_genus_mass = 
+  genus_prop %>% 
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% 
+  as.matrix %>% 
+  apply(1,sum) %>% 
+  sort %>% rev %>% head(30)
+
+# genus_prop %>% 
+#   select(-outliers) %>%
+#   filter(taxa %in% names(top_genus_mass)) %>%
+#   summarise_at(-1, sum) %>% t %>% hist()
+
+
+genus %>%
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus
+
+
+```
+
+
+load model and predict
+```{r}
+
+load("fit_genus_list_12.rda")
+
+genus %>% head
+
+enterotypes_prediction = predict(fit_genus_list[[1]][[12]], t(genus), assign = TRUE)
+
+```
+
+
+```{r}
+
+enterotypes_prediction %>% 
+  reshape2::melt() %>%
+  group_by(Var1) %>%
+  filter(value==max(value)) %>%
+  dplyr::rename(`#SampleID`="Var1", Enterotypes_id="Var2") %>%
+  select(`#SampleID`,Enterotypes_id) -> enterotypes_prediction_max
+  
+
+```
+
+
+compare enterotypes distribution
+
+```{r}
+
+enterotypes=read.table("enterotypes_12.txt", sep="\t")
+
+
+
+enterotypes_prediction_max %>%
+  mutate(set=ifelse(`#SampleID`%in% rownames(enterotypes),"Train","Predict")) -> enterotypes_prediction_set
+
+write.csv2(enterotypes_prediction_set,file="enterotypes_all_set.csv")
+
+```
+
+
+```{r}
+
+enterotypes_prediction_set %>%
+  ggplot() + geom_bar(aes(x=as.character(Enterotypes_id),fill=set))
+
+```
+
+
+
+
+```{r}
+metadata %>% 
+  #filter(`#SampleID` %in% row.names(genus)) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  select(`#SampleID`,age_cat,sex, continent,country_of_birth, bmi_cat,gluten,types_of_plants,diet_type  ) %>% 
+  filter(sex %in% c("male","female")) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") -> metadata_select
+```
+
+
+by continent
+```{r}
+metadata_select %>%
+  merge(enterotypes_prediction_set, by="#SampleID") %>%
+  filter(set=="Predict") %>%
+  group_by(continent) %>%
+  mutate(total=n()) %>%
+  group_by(continent,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=continent,fill=prop)) + scale_fill_viridis_c()
+
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  group_by(continent) %>%
+  mutate(total=n()) %>%
+  group_by(continent,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=continent,fill=prop)) + scale_fill_viridis_c()
+
+
+```
+
+
+```{r}
+metadata_select %>%
+  merge(enterotypes_prediction_set, by="#SampleID") %>%
+  filter(age_cat != "baby") %>%
+  filter(set=="Predict") %>%
+  group_by(age_cat) %>%
+  mutate(total=n()) %>%
+  group_by(age_cat,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ungroup() %>%
+  group_by(Enterotypes_id) %>%
+  mutate(prop2=sum(prop)) %>%
+  mutate(prop=prop/prop2) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=age_cat,fill=prop)) + scale_fill_viridis_c()
+
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  filter(age_cat != "baby") %>%
+  group_by(age_cat) %>%
+  mutate(total=n()) %>%
+  group_by(age_cat,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ungroup() %>%
+  group_by(Enterotypes_id) %>%
+  mutate(prop2=sum(prop)) %>%
+  mutate(prop=prop/prop2) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=age_cat,fill=prop)) + scale_fill_viridis_c()
+
+```
+
+
+
+by BMI group
+
+
+```{r}
+
+metadata_select %>%
+  merge(enterotypes_prediction_set, by="#SampleID") %>%
+  filter(age_cat != "baby") %>%
+  filter(set=="Predict") %>%
+  filter(!is.na(bmi_cat), bmi_cat != "Not provided") %>%
+  group_by(bmi_cat) %>%
+  mutate(total=n()) %>%
+  group_by(bmi_cat,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ungroup() %>%
+  group_by(bmi_cat) %>%
+  mutate(prop2=sum(prop)) %>%
+  mutate(prop=prop/prop2) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=bmi_cat,fill=prop)) + scale_fill_viridis_c()
+
+
+
+metadata_select %>%
+  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+  filter(age_cat != "baby") %>%
+  filter(!is.na(bmi_cat), bmi_cat != "Not provided") %>%
+  group_by(bmi_cat) %>%
+  mutate(total=n()) %>%
+  group_by(bmi_cat,Enterotypes_id,total) %>%
+  summarise(prop=n()) %>%
+  mutate(prop=prop/total) %>%
+  ungroup() %>%
+  group_by(bmi_cat) %>%
+  mutate(prop2=sum(prop)) %>%
+  mutate(prop=prop/prop2) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=bmi_cat,fill=prop)) + scale_fill_viridis_c()
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

@@ -35,10 +35,17 @@ with nutrient
 
 ```{r}
 
+vioscreen_micromacro = read.table("../data-raw/vioscreen/vioscreen_micromacro.tsv",check.names = FALSE, comment.char = "", header=TRUE, sep="\t", row.names=1) %>% tibble::rownames_to_column("#SampleID")
+
 metadata %>%
   select(`#SampleID`,contains("vioscreen")) %>%
   filter(vioscreen_hei_score!="Not provided", !is.na(vioscreen_hei_score)) %>% 
   merge(enterotypes_prediction_set, by="#SampleID") -> enterotypes_vioscreen
+
+vioscreen_micromacro %>%
+  merge(enterotypes_prediction_set, by="#SampleID") -> enterotypes_vioscreen
+
+
   
 enterotypes_vioscreen %>% 
   ggplot() + geom_boxplot(aes(x=as.character(Enterotypes_id),y=as.numeric(vioscreen_hei_score)))
@@ -71,7 +78,7 @@ enterotypes_vioscreen %>%
 # 
 # vioscreen_dict
   
-vioscreen_test[1:30,] %>% pull(variable)  
+vioscreen_test[1:153,] %>% pull(variable)  
   
 ```
 
@@ -103,14 +110,17 @@ enterotypes_vioscreen %>%
 
 
 ```{r fig.height=10, fig.width=10}
-
 enterotypes_vioscreen %>%
-  select(vioscreen_test[1:30,] %>% pull(variable) %>% as.character) %>%
-  mutate_all(as.numeric) %>%
-  cor(method="spearman") -> vioscreen_cor_test
+  select(vioscreen_test[1:153,] %>% pull(variable) %>% as.character) %>%
+  #mutate_all(as.numeric) %>%
+  cor(method="spearman",use = "pairwise.complete.obs") -> vioscreen_cor_test
 
-vioscreen_cor_test  %>%  heatmap()
+#vioscreen_cor_test  %>%  heatmap()
+```
 
+
+
+```{r fig.height=10, fig.width=10}
 reorder_cormat <- function(cormat){
 # Utiliser la corrélation entre les variables
   # comme mésure de distance
@@ -146,10 +156,13 @@ ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
     size = 12, hjust = 1))+
  coord_fixed()
 # Afficher heatmap
-print(ggheatmap)
+print(ggheatmap + theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()))
+```
 
 
-
+```{r fig.height=10, fig.width=10}
 ```
 
 
@@ -250,25 +263,27 @@ enterotypes_vioscreen_foods %>% dim
 
 enterotypes_vioscreen_foods %>% pull(Enterotypes_id) %>% table
 
+enterotypes_vioscreen %>% pull(Enterotypes_id) %>% table
+
 ```
 
 
 ```{r}
-
+#to do:  deal with NA
 library(LiblineaR)
 
-et=c("10","8")
+et=c("1","2")
 
-x=enterotypes_vioscreen_foods %>% filter(Enterotypes_id %in% et) %>% .[,as.character(vioscreen_foods_test[1:150,]$variable)] %>% select_if(~ !is.numeric(.) || sum(.) != 0)
-y=factor(paste0("m",enterotypes_vioscreen_foods %>% filter(Enterotypes_id %in% et) %>% .[,262] %>% as.character))
-train=sample(1:dim(enterotypes_vioscreen_foods %>% filter(Enterotypes_id %in% et) )[1],100)
+x=enterotypes_vioscreen  %>% filter(Enterotypes_id %in% et) %>% select(-`#SampleID`,-survey_id,-Enterotypes_id,-set) #%>% select_if(~ !is.numeric(.) || sum(.) != 0)
+y=factor(paste0("m",enterotypes_vioscreen  %>% filter(Enterotypes_id %in% et) %>% .[,"Enterotypes_id"] %>% as.character))
+train=sample(1:dim(enterotypes_vioscreen  %>% filter(Enterotypes_id %in% et) )[1],500)
 xTrain=x[train,]
 
 xTest=x[-train,]
 yTrain=y[train]
 yTest=y[-train]
 # Center and scale data
-s=scale(log10(xTrain+1),center=FALSE,scale=FALSE)
+s=scale(xTrain,center=FALSE,scale=FALSE)
 # Find the best model with the best cost parameter via 10-fold cross-validations
 tryTypes=c(0:3,5:7)
 tryCosts=c(1000,1,0.001)
@@ -293,8 +308,8 @@ cat("Best accuracy is:",bestAcc,"\n")
 # Re-train best model with best cost value.
 m=LiblineaR(data=s,target=yTrain,type=bestType,cost=bestCost,bias=1,verbose=FALSE)
 # Scale the test data
-#s2=scale(log10(xTest+1),attr(s,"scaled:center"),attr(s,"scaled:scale"))
-s2=log10(xTest+1)
+#s2=scale(xTest,attr(s,"scaled:center"),attr(s,"scaled:scale"))
+s2=xTest
 # Make prediction
 pr=FALSE
 if(bestType==0 || bestType==7) pr=TRUE
