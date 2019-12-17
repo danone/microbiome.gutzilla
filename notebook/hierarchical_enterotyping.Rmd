@@ -50,6 +50,8 @@ top_genus_mass =
   apply(1,sum) %>% 
   sort %>% rev %>% head(30)
 
+save(top_genus_mass, file="top_genus_mass.rda")
+
 # genus_prop %>% 
 #   select(-outliers) %>%
 #   filter(taxa %in% names(top_genus_mass)) %>%

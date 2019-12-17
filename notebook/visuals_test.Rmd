@@ -17,7 +17,7 @@ load metadata
 
 metadata = readr::read_tsv(system.file("data-raw/qiime/generated-files-20190512/ag.txt", package = "agp"))
 
-country_info = read_tsv(system.file(package="agp", "data-raw/countryInfo.txt"), comment = "#", col_names = FALSE, na = "") %>%
+country_info = readr::read_tsv(system.file(package="agp", "data-raw/countryInfo.txt"), comment = "#", col_names = FALSE, na = "") %>%
   select(X5,X9) %>%
   dplyr::rename(country="X5", continent="X9" )
 

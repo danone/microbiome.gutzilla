@@ -40,6 +40,7 @@ source("https://raw.githubusercontent.com/waldronlab/presentations/master/Waldro
 eh <- ExperimentHub()
 myquery <- query(eh, "curatedMetagenomicData")
 version <- "20170526."
+#version <- "20190919."
 
 myquery.stool <- myquery[grepl("stool", myquery$title) & grepl("bugs", myquery$title) & grepl(version, myquery$title) & !grepl("VatanenT_2016", myquery$title) & !grepl("AsnicarF_2017", myquery$title), ]
 
