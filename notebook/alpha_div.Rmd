@@ -1,0 +1,29 @@
+---
+title: "alpha diversity enterotypes"
+output: html_notebook
+---
+
+
+import shannon
+```{r}
+
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "agp")
+
+shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
+
+```
+
+boxplot enterotypes vs shanonn
+```{r}
+
+enterotypes=read.table("enterotypes_12.txt", sep="\t")
+
+merge(enterotypes,shannon, by="row.names") %>%
+  dplyr::rename(`#SampleID`="Row.names") -> enterotypes_alpha_div
+  
+enterotypes_alpha_div %>% 
+  ggplot()   + geom_boxplot(aes(x=Enterotypes_id %>% as.character,y=shannon))
+  
+
+```
+
