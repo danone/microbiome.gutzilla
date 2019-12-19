@@ -108,6 +108,8 @@ cdiff <- cumsum(diff[o]) / sum(diff)
 df <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 30)
 df %>% as.data.frame()
 
+df_gutzilla = df %>% as.data.frame()
+
 df %>% as.data.frame() %>%
   tibble::rownames_to_column("taxa") %>%
   reshape2::melt(id.vars="taxa") %>%

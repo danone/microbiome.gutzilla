@@ -40,10 +40,12 @@ tax_table(curatedMetaG_phyloseq) %>% head
 
 
 ```{r}
-
 load("curatedMetaG_data.rda")
 load("top_genus_mass.rda")
+```
 
+
+```{r}
 curatedMetaG_data %>%
   mutate(Genus=fct_explicit_na(Genus, na_level = ""),
          Family=fct_explicit_na(Family, na_level = "")) %>%
@@ -72,10 +74,12 @@ genus_count %>%
            taxa == "k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Lachnospiraceae;g__Lachnospiraceae_noname") %>%
   select(-Kingdom,-Phylum,-Class,-Order,-Family,-Genus) %>%
   tibble::column_to_rownames("taxa") -> genus_count_dominant
-  
+```
 
 
+```{r}
 
+alpha <- phyloseq::estimate_richness(curatedMetaG_phyloseq, measures = "Shannon")
 
 ```
 
@@ -139,6 +143,8 @@ cdiff <- cumsum(diff[o]) / sum(diff)
 df <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 30)
 df %>% as.data.frame()
 
+df_curated = df %>% as.data.frame()
+
 df %>% as.data.frame() %>%
   tibble::rownames_to_column("taxa") %>%
   reshape2::melt(id.vars="taxa") %>%
@@ -153,18 +159,18 @@ df %>% as.data.frame() %>%
 
 ```{r fig.height=5, fig.width=12}
 
-df %>% as.data.frame() %>%
+df_curated %>%
   select(-diff,-cdiff,-Mean) %>%
   mutate_at(1:12,~log10(.)) %>%
   t %>%
   as.data.frame %>%
   ade4::dudi.pca(scannf = F,nf=3) %>% .$li %>% ade4::s.label()
 
-df %>% as.data.frame() %>%
+df_curated %>%
   select(-diff,-cdiff,-Mean) %>%
   tibble::rownames_to_column("taxa") %>%
   as_tibble %>%
-  .[c(1:4,8),] %>%
+  .[c(1:3,6,10),] %>%
   reshape2::melt(id.vars="taxa") %>%
   group_by(variable) %>%
   mutate(ymax=cumsum(value)) %>%
@@ -238,4 +244,39 @@ curatedMetaG_metadata %>%
 
 
 ```
+
+
+
+```{r fig.height=6, fig.width=10}
+
+merge(df_curated,df_gutzilla, by="row.names") %>% 
+  select(contains("m",ignore.case = FALSE)) %>% 
+  mutate(Row.names = Row.names %>% str_split_fixed(pattern =";",  n = 6) %>% .[,6]) %>%
+  tibble::column_to_rownames("Row.names") %>% 
+  as.matrix %>% 
+  heatmap(scale = "column")
+
+merge(df_curated,df_gutzilla, by="row.names") %>% 
+  select(contains("m",ignore.case = FALSE)) %>% 
+  mutate(Row.names = Row.names %>% str_split_fixed(pattern =";",  n = 6) %>% .[,6]) %>%
+  tibble::column_to_rownames("Row.names") %>% 
+  as.matrix %>% 
+  heatmap(scale = "row")
+
+
+```
+
+
+```{r}
+
+enterotypes_curated
+
+alpha_shannon_curated %>% 
+  merge(enterotypes_curated, by="row.names") %>%
+  ggplot() + geom_boxplot(aes(x=Enterotypes_id%>%as.character,y=Shannon))
+
+
+
+```
+
 

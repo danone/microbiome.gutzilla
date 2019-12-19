@@ -83,6 +83,9 @@ curatedMetaG_metadata = samp
 
 save(curatedMetaG_phyloseq,curatedMetaG_metadata, file="curatedMetaGData.rda")
 
+alpha_shannon_curated <- phyloseq::estimate_richness(pseq, measures = "Shannon")
+
+save(alpha_shannon_curated, file="alpha_shannon_curated.rda")
 
 ```
 
