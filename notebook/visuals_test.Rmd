@@ -285,7 +285,7 @@ top_genus_prop_value_metadata %>%
   filter(!is.na(age_cat) & age_cat != "Not provided") %>%
   mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
   group_by(`#SampleID`,country_of_birth,age_cat) %>%
-  summarise(mass=sum(value)) %>% ggplot() + geom_histogram(aes(x=mass))
+  summarise(mass=sum(value)) %>% #ggplot() + geom_histogram(aes(x=mass))
   filter(mass<0.25) %>% pull(`#SampleID`) -> microbiota_outliers
   
 
@@ -359,6 +359,54 @@ test %>%
 # 
 # test %>%
 #   ggplot + geom_point(aes(pcoa1, pcoa2, color=log10(value+0.0001) ), size=1) +  facet_grid(age_cat.x~Genus) + scale_color_viridis_c()
+```
+
+make it pretty
+```{r fig.height=4, fig.width=7}
+
+test %>%
+  filter(Genus%in%c("Bifidobacterium","Akkermansia")) %>%
+  ggplot + 
+  geom_point(aes(pcoa1, pcoa2, color=log10(value+0.0001) ), size=1) +  
+  #facet_wrap(~Genus, nrow=1) + 
+  #scale_color_viridis_c(option="A") +
+  scale_color_gradient2(
+        low = scales::muted("#ffd9ff"), mid = "#ff77ff", high = scales::muted("#ff01ff"),
+        space = "rgb",
+        guide = "colourbar"
+        ) +
+  guides(color=FALSE) +
+  theme_void() +
+  theme(panel.background = element_rect(fill="black")) +
+  transition_states(Genus,
+                    transition_length = 0.1,
+                    state_length = 1) +
+  ggtitle('Now showing {closest_state}') -> anim
+
+anim_save(filename = "microbiota_valentine_bif_akk.gif", animation = anim)
+
+```
+
+
+
+```{r fig.height=4, fig.width=7}
+
+test %>%
+  filter(Genus%in%c("Bifidobacterium","Akkermansia")) %>%
+  ggplot + 
+  geom_point(aes(pcoa1, pcoa2, color=log10(value+0.0001) ), size=1) +  
+  facet_wrap(~Genus, nrow=1) + 
+  #scale_color_viridis_c(option="A") +
+  scale_color_gradient2(
+        low = scales::muted("#ffd9ff"), mid = "#ff77ff", high = scales::muted("#ff01ff"),
+        space = "rgb",
+        guide = "colourbar"
+        ) +
+  guides(color=FALSE) +
+  theme_void() +
+  theme(panel.background = element_rect(fill="black"))
+
+
 ```
 
 
