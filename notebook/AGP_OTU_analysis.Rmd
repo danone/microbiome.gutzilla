@@ -1,0 +1,183 @@
+---
+title: "AGP OTU R analysis"
+output: html_notebook
+---
+
+
+```{r}
+
+devtools::load_all()
+library(tidyverse)
+library(dplyr)
+library(qiime2R)
+library(biomformat)
+library(ggplot2)
+
+```
+
+
+
+## import biom and tax file
+
+I have difficulities to import directly qza file either with `qiime2R::read_qza` either the biom file directly with `biomformat`.
+For the moment, I extract qza with `unzip` within the shell and convert into tsv file with:
+
+`biom convert -i feature-table.biom -o table.from_biom_w_tax.tsv --to-tsv --header-key taxonomy`
+
+
+
+```{r eval=FALSE, include=FALSE}
+
+biom_path = system.file("data-raw/qiime/generated-files-20190512/60049f6c-23e9-4bcd-8691-c9953d5b4a24/data/feature-table.biom", package="agp")
+tax_path  = system.file("data-raw","qiime","generated-files-20190512","ag.fna.nobloom.min2.min1k.taxonomy.qza", package="agp")
+#biom = qiime2R::read_qza(biom_path) # too slow!!
+tax  = qiime2R::read_qza(tax_path)
+
+biom = biomformat::read_biom("/home/tapju/storage/AmericanGut/agp/data-raw/qiime/generated-files-20190512/60049f6c-23e9-4bcd-8691-c9953d5b4a24/data/feature-table.biom")
+
+
+
+```
+
+
+### import OTU table
+```{r}
+
+#Sys.setenv("VROOM_CONNECTION_SIZE" = 131072 * 4)
+
+otu_path = system.file("data-raw/qiime/generated-files-20190512/60049f6c-23e9-4bcd-8691-c9953d5b4a24/data","table.from_biom_w_tax.tsv", package="agp")
+
+#otu_path = system.file("data-raw/qiime/generated-files-small-set/a7fb8396-50b6-415b-8fee-4910e0d6d8b9/data","table.from_biom_w_tax.tsv", package="agp")
+
+#tax_path  = system.file("data-raw","qiime","generated-files-20190512","ag.fna.nobloom.min2.min1k.taxonomy.qza", package="agp")
+
+
+#otu = vroom::vroom(otu_path,comment = "", delim="\t", skip = 1)
+
+otu = readr::read_tsv(otu_path,comment = "", skip=1) # very long!!
+save(otu, file="otu.rds", compress=FALSE)
+load(file="otu.rda")
+
+```
+
+
+```{r eval=FALSE, include=FALSE}
+#otu_path = system.file("data-raw/qiime/generated-files-20190512/60049f6c-23e9-4bcd-8691-c9953d5b4a24/data","test.tsv", package="agp")
+#otu_test = vroom::vroom(otu_path,comment = "", delim="\t", skip = 1)
+
+```
+
+
+### import tax table
+
+
+```{r}
+
+tax_path  = system.file("data-raw","qiime","generated-files-20190512","ag.fna.nobloom.min2.min1k.taxonomy.qza", package="agp")
+tax  = qiime2R::read_qza(tax_path)
+
+```
+
+### pivot longer OTU table
+
+
+```{r}
+
+otu_longer_1 = 
+otu[1:5000] %>% 
+  #select(-taxonomy) %>%
+  mutate_at(-1, ~na_if(.,0)) %>% 
+  tidyr::pivot_longer(-`#OTU ID`, names_to = "sample_id", values_to = "count",    values_drop_na = TRUE) 
+
+saveRDS(otu_longer_1, file = "otu_longer_1.rds")
+
+otu_longer_2 = 
+otu[c(1,5001:10000)] %>% 
+  #select(-taxonomy) %>%
+  mutate_at(-1, ~na_if(.,0)) %>% 
+  tidyr::pivot_longer(-`#OTU ID`, names_to = "sample_id", values_to = "count",    values_drop_na = TRUE) 
+
+saveRDS(otu_longer_2, file = "otu_longer_2.rds")
+
+otu_longer_3 = 
+otu[c(1,10001:15000)] %>% 
+  #select(-taxonomy) %>%
+  mutate_at(-1, ~na_if(.,0)) %>% 
+  tidyr::pivot_longer(-`#OTU ID`, names_to = "sample_id", values_to = "count",    values_drop_na = TRUE) 
+
+saveRDS(otu_longer_3, file = "otu_longer_3.rds")
+
+last_sample=dim(otu)[2]-1
+
+otu_longer_4 = 
+otu[c(1,15001:last_sample)] %>% 
+  #select(-taxonomy) %>%
+  mutate_at(-1, ~na_if(.,0)) %>% 
+  tidyr::pivot_longer(-`#OTU ID`, names_to = "sample_id", values_to = "count",    values_drop_na = TRUE) 
+
+saveRDS(otu_longer_4, file = "otu_longer_4.rds")
+
+
+otu_longer_all = rbind(otu_longer,otu_longer_2,otu_longer_3,otu_longer_4)
+
+saveRDS(otu_longer_all, file = "otu_longer_all.rds")
+
+
+
+```
+
+
+
+### focus on bifidobacterium
+
+
+```{r}
+
+tax$data %>% 
+  filter(Taxon %in% grep("Bifidobacterium",Taxon,value = TRUE)) %>% pull(Feature.ID) -> bif_otu
+
+otu_longer_all %>%
+  #filter(sample_id %in% c("10317.000042798","10317.000058805")) %>%
+  group_by(sample_id) %>%
+  mutate(count = SpiecEasi::clr(count)) -> otu_clr
+
+otu_clr %>%
+  filter(`#OTU ID` %in% bif_otu) %>%
+  ungroup() %>%
+  group_by(`#OTU ID`) %>%
+  summarise(q25=quantile(count,0.25),q50=quantile(count,0.50),q75=quantile(count,0.75), n=n() ) -> bif_stat_summary
+
+  
+  
+```
+
+
+
+```{r}
+
+bif_stat_summary %>%
+  arrange(desc(n)) %>%
+  ggplot() + geom_point(aes(x=n,y=q50)) + 
+  geom_point(aes(x=n,y=q25), col="red") + 
+  geom_point(aes(x=n,y=q75), col="red") +
+  scale_x_log10()
+
+bif_stat_summary %>%
+  filter(n>10) %>%
+  merge(tax$data, by.x = "#OTU ID", by.y="Feature.ID") %>%
+  arrange(desc(n))
+
+
+
+```
+
+```{r}
+
+
+
+
+```
+
+
+
+
