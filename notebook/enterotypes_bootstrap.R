@@ -65,30 +65,31 @@ n=30 # n samples per group
 
 metadata %>%
   filter(!(sample_name %in% outliers)) %>%
-  #filter(!(`#SampleID` %in% outliers)) %>%
-  #merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  filter(sample_name %in% colnames(genus)) %>%
   select(sample_name,age_cat,sex, `Sub-region Name`,country_of_birth) %>%
-  #select(`#SampleID`,age_cat,sex, continent,country_of_birth) %>%
   filter(sex %in% c("male","female")) %>%
   filter(!is.na(age_cat) & age_cat != "Not provided") %>%
   group_by(age_cat,sex,`Sub-region Name`) %>%
   sample_n(if(n() < n) n() else n) %>%
-  #sample_n(size=30, replace=TRUE) %>%
-  #unique() %>%
   pull(sample_name) -> samples_id_select
+
+
+metadata %>%
+  select(sample_name,`Region Name`,country_of_birth,sex,age_cat,age_years,`Sub-region Name`) %>%
+  filter(sample_name %in% samples_id_select) %>%
+  with(., xtabs(~`Sub-region Name`+age_cat, data=.))
 
 length(samples_id_select)
 
 metadata %>%
   filter(sample_name %in% samples_id_select) %>%
-  #merge(country_info, by.x="country_of_birth", by.y="country") %>%
   select(sample_name,age_cat,sex, `Sub-region Name`,country_of_birth, bmi_cat,gluten,types_of_plants,diet_type  ) %>%
   filter(sex %in% c("male","female")) %>%
   filter(!is.na(age_cat) & age_cat != "Not provided") -> metadata_select
 
 
 genus_sample_id_select=genus[,colnames(genus) %in% samples_id_select]
-#source("notebook/enterotyping.R")
+
 
 #############
 fit_genus_list = vector("list",5)
