@@ -15,32 +15,98 @@ genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rowname
 
 ```
 
+load metadata (cleaned)
+```{r}
+
+data("UNSD_countries")
+
+metadata = readr::read_csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"))
+
+#to do: check issue parsing IBD variables
+
+colnames(metadata) = stringr::str_to_lower(colnames(metadata))
+
+
+
+metadata %>%
+  select(country_of_birth) %>%
+  merge(UNSD_countries %>% 
+          select(`Country or Area`, `Sub-region Name`, `Region Name`) %>% 
+          mutate(`Country or Area` =  gsub("United Kingdom of Great Britain and Northern Ireland", "United Kingdom", `Country or Area`)) %>% 
+          mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
+        by.x="country_of_birth", by.y="Country or Area") %>% 
+  group_by(`Region Name`,`Sub-region Name`) %>% summarise(n=n()) %>%
+  ungroup() %>%
+  ggplot() + geom_bar(aes(y=n, x=`Sub-region Name`), stat="identity") + scale_y_log10() +
+  facet_wrap(~`Region Name`, scales = "free_x", nr=1) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  xlab("Region of Birth\n(United Nations-m49)") +
+  ylab("Number of stool sample")
+  
+ggsave("Region_of_birth.pdf")
+
+metadata <- metadata %>%
+  merge(UNSD_countries %>% 
+          select(`Country or Area`, `Sub-region Name`, `Region Name`) %>% 
+          mutate(`Country or Area` =  gsub("United Kingdom of Great Britain and Northern Ireland", "United Kingdom", `Country or Area`)) %>% 
+          mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
+        by.x="country_of_birth", by.y="Country or Area")
+  
+```
+
+
+
+```{r}
+
+table(metadata$`Sub-region Name`)
+
+
+```
+
+
 
 ```{r}
 outliers = readLines(con="outliers_samples.txt")
 
+n=30 # n samples per group
+
 metadata %>% 
-  filter(!(`#SampleID` %in% outliers)) %>%
+  filter(!(sample_name %in% outliers)) %>%
+  #filter(!(`#SampleID` %in% outliers)) %>%
   merge(country_info, by.x="country_of_birth", by.y="country") %>%
-  select(`#SampleID`,age_cat,sex, continent,country_of_birth) %>% 
+  select(sample_name,age_cat,sex, `Sub-region Name`,country_of_birth) %>% 
+  #select(`#SampleID`,age_cat,sex, continent,country_of_birth) %>% 
   filter(sex %in% c("male","female")) %>%
   filter(!is.na(age_cat) & age_cat != "Not provided") %>%
-  group_by(age_cat,sex,continent) %>% 
-  sample_n(size=30, replace=TRUE) %>%
-  unique() %>% pull(`#SampleID`) -> samples_id_select
+  group_by(age_cat,sex,`Sub-region Name`) %>% 
+  sample_n(if(n() < n) n() else n) %>%
+  #sample_n(size=30, replace=TRUE) %>%
+  #unique() %>% 
+  pull(sample_name) -> samples_id_select
   #summarise(n=n())
 
 length(samples_id_select)
 
 
 metadata %>% 
-  filter(`#SampleID` %in% samples_id_select) %>%
+  filter(sample_name %in% samples_id_select) %>%
   merge(country_info, by.x="country_of_birth", by.y="country") %>%
-  select(`#SampleID`,age_cat,sex, continent,country_of_birth, bmi_cat,gluten,types_of_plants,diet_type  ) %>% 
+  select(sample_name,age_cat,sex, `Sub-region Name`,country_of_birth, bmi_cat,gluten,types_of_plants,diet_type  ) %>% 
+  filter(sex %in% c("male","female")) %>%
+  filter(!is.na(age_cat) & age_cat != "Not provided") %>% #-> metadata_select
+  with(., xtabs(~`Sub-region Name`+age_cat, data=.))
+
+
+metadata %>% 
+  filter(sample_name %in% samples_id_select) %>%
+  merge(country_info, by.x="country_of_birth", by.y="country") %>%
+  select(sample_name,age_cat,sex, `Sub-region Name`,country_of_birth, bmi_cat,gluten,types_of_plants,diet_type  ) %>% 
   filter(sex %in% c("male","female")) %>%
   filter(!is.na(age_cat) & age_cat != "Not provided") -> metadata_select
-  #with(., xtabs(~continent+age_cat, data=.))
-
 
 top_genus_mass = 
   genus_prop %>% 
@@ -58,23 +124,102 @@ save(top_genus_mass, file="top_genus_mass.rda")
 #   summarise_at(-1, sum) %>% t %>% hist()
 
 
-genus %>%
-  select(-outliers) %>%
-  tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus
 
 
 ```
 
+
+
+```{r eval=FALSE, include=FALSE}
+
+genus=genus[,colnames(genus) %in% samples_id_select]
+source("../notebook/enterotyping.R")
+
+save(fit_genus_list, file="fit_genus_list.rda")
+
+
+```
 
 
 ```{r}
 
-genus=genus[,colnames(genus) %in% samples_id_select]
-source("../R/enterotyping.R")
+#source("enterotypes_bootstrap.R")
 
-save(fit_genus_list, file="fit_genus_list.rda")
+
+fit_genus_bootstrap = vector("list",5)
+load("../fit_genus_list_1.rda")
+fit_genus_bootstrap[[1]] = fit_genus_list
+load("../fit_genus_list_2.rda")
+fit_genus_bootstrap[[2]] = fit_genus_list
+load("../fit_genus_list_3.rda")
+fit_genus_bootstrap[[3]] = fit_genus_list
+load("../fit_genus_list_4.rda")
+fit_genus_bootstrap[[4]] = fit_genus_list
+load("../fit_genus_list_5.rda")
+fit_genus_bootstrap[[5]] = fit_genus_list
 
 ```
+
+
+```{r}
+
+
+BIC_list = map(fit_genus_bootstrap, function(z) map(z, function(y) sapply(y, function(x){attr(x,"goodnessOfFit")[["BIC"]]}))) 
+lplc_list = map(fit_genus_bootstrap, function(z) map(z, function(y) sapply(y, function(x){attr(x,"goodnessOfFit")[["Laplace"]]})))
+
+
+BIC_df = NULL
+
+for(i in 1:5) {
+  for(j in 1:5){
+    
+    BIC_df=cbind(BIC_df,BIC_list[[i]][[j]])
+    
+  }
+}
+
+
+
+lplc_df = NULL
+
+for(i in 1:5) {
+  for(j in 1:5){
+    
+    lplc_df=cbind(lplc_df,lplc_list[[i]][[j]])
+    
+  }
+}
+
+
+
+
+BIC_df %>% as.data.frame %>% 
+  summarise_all(which.min) %>%
+  reshape2::melt() %>%
+  ggplot() + geom_bar(aes(x=value)) + 
+  ggtitle("BIC optimun") + xlab("Dirichlet component") +
+  theme_bw() + scale_x_continuous(limits = c(1,20.5), breaks = scales::pretty_breaks(n = 20))
+
+
+
+lplc_df %>% as.data.frame %>% 
+  summarise_all(which.min) %>%
+    reshape2::melt() %>%
+  ggplot() + geom_bar(aes(x=value)) + 
+  xlim(1,21) + ggtitle("Laplace optimun") + xlab("Dirichlet component")+
+  theme_bw() + scale_x_continuous(limits = c(1,20.5), breaks = scales::pretty_breaks(n = 20))
+
+
+```
+
+
+```{r}
+
+
+
+```
+
+
 
 
 ```{r fig.height=3, fig.width=10}
@@ -82,12 +227,37 @@ save(fit_genus_list, file="fit_genus_list.rda")
 names(lplc) = as.character(1:5)
 as_tibble(lplc)  %>% tibble::rowid_to_column("k") %>% reshape2::melt(id.vars="k") %>% ggplot() + geom_line(aes(x=k,y=value,group=variable))
 
+names(BIC) = as.character(1:5)
+as_tibble(BIC)  %>% tibble::rowid_to_column("k") %>% reshape2::melt(id.vars="k") %>% ggplot() + geom_line(aes(x=k,y=value,group=variable))
+
 ```
 
 
 ```{r fig.height=6, fig.width=12}
 
-heatmapdmn(t(genus),fit_genus_list[[1]][[1]],fit_genus_list[[1]][[best_genus_lplc]])
+
+fit_genus_list = fit_genus_bootstrap[[1]]
+best_genus_lplc = 17
+
+enterotypes =
+
+  fit_genus_list[[1]][[best_genus_lplc]] %>%
+  mixture(assign=TRUE) %>% as.data.frame %>% set_colnames(c("Enterotypes_id"))
+
+
+metadata %>%
+  select(sample_name,`Region Name`,country_of_birth,sex,age_cat,age_years,`Sub-region Name`) %>%
+  filter(sample_name %in% rownames(enterotypes)) %>%
+  with(., xtabs(~`Sub-region Name`+age_cat, data=.))
+
+genus %>%
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus_df
+
+
+heatmapdmn(t(genus_df[,colnames(genus_df) %in% rownames(enterotypes)]),fit_genus_list[[1]][[1]],fit_genus_list[[1]][[best_genus_lplc]])
+
+
 
 ###################################################
 ### code chunk number 11: posterior-mean-diff
@@ -124,18 +294,18 @@ df %>% as.data.frame() %>%
 
 ```{r}
 
-metadata_select %>%
-  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
-  group_by(continent) %>%
+metadata %>%
+  merge(enterotypes, by.x="sample_name", by.y="row.names", all.y="TRUE") %>%
+  group_by(`Sub-region Name`) %>%
   mutate(total=n()) %>%
-  group_by(continent,Enterotypes_id,total) %>%
+  group_by(`Sub-region Name`,Enterotypes_id,total) %>%
   summarise(prop=n()) %>%
   mutate(prop=prop/total) %>%
-  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=continent,fill=prop)) + scale_fill_viridis_c()
+  ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=`Sub-region Name`,fill=prop)) + scale_fill_viridis_c()
 
 
-metadata_select %>%
-  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+metadata %>%
+  merge(enterotypes, by.x="sample_name", by.y="row.names", all.y="TRUE") %>%
   filter(age_cat != "baby") %>%
   group_by(age_cat) %>%
   mutate(total=n()) %>%
@@ -149,8 +319,8 @@ metadata_select %>%
   ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=age_cat,fill=prop)) + scale_fill_viridis_c()
 
 
-metadata_select %>%
-  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+metadata %>%
+  merge(enterotypes, by.x="sample_name", by.y="row.names", all.y="TRUE") %>%
   filter(age_cat != "baby") %>%
   filter(!is.na(bmi_cat), bmi_cat != "Not provided") %>%
   group_by(bmi_cat) %>%
@@ -165,8 +335,8 @@ metadata_select %>%
   ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=bmi_cat,fill=prop)) + scale_fill_viridis_c()
 
 
-metadata_select %>%
-  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+metadata %>%
+  merge(enterotypes, by.x="sample_name", by.y="row.names", all.y="TRUE") %>%
   filter(age_cat != "baby") %>%
   filter(!is.na(gluten), gluten != "Not provided") %>%
   group_by(gluten) %>%
@@ -180,8 +350,8 @@ metadata_select %>%
   mutate(prop=prop/prop2) %>%
   ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=gluten,fill=prop)) + scale_fill_viridis_c()
 
-metadata_select %>%
-  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+metadata %>%
+  merge(enterotypes, by.x="sample_name", by.y="row.names", all.y="TRUE") %>%
   filter(age_cat != "baby") %>%
   filter(!is.na(types_of_plants), types_of_plants != "Not provided") %>%
   group_by(types_of_plants) %>%
@@ -195,8 +365,8 @@ metadata_select %>%
   mutate(prop=prop/prop2) %>%
   ggplot() + geom_tile(aes(x=Enterotypes_id %>% as.character(),y=types_of_plants,fill=prop)) + scale_fill_viridis_c()
 
-metadata_select %>%
-  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
+metadata %>%
+  merge(enterotypes, by.x="sample_name", by.y="row.names", all.y="TRUE") %>%
   filter(age_cat != "baby") %>%
   filter(!is.na(diet_type), diet_type != "Not provided") %>%
   group_by(diet_type) %>%
@@ -218,12 +388,12 @@ to do: compute enterotype proportion for all categories and do a PCA analysis wi
 
 ```{r}
 
-metadata_select %>%
-  merge(enterotypes, by.x="#SampleID", by.y="row.names") %>%
-  select(-country_of_birth,-sex,-gluten) %>%
-  reshape2::melt(id.vars=c("#SampleID","Enterotypes_id")) %>%
+metadata %>%
+  merge(enterotypes, by.x="sample_name", by.y="row.names", all.y="TRUE") %>%
+  select(sample_name,age_cat,sex,`Sub-region Name`,bmi_cat, Enterotypes_id) %>%
+  reshape2::melt(id.vars=c("sample_name","Enterotypes_id")) %>%
   filter(!is.na(value), value != "Not provided") %>%
-  select(-variable, -`#SampleID`) %>%
+  select(-variable, -`sample_name`) %>%
   group_by(Enterotypes_id,value) %>%
   filter(!is.na(value)) %>%
   #mutate(total=n()) %>%
@@ -251,7 +421,7 @@ ade4::s.label(et_metadata_pca$li, yax=2)
 
 df %>% as.data.frame() %>%
   select(-diff,-cdiff,-Mean) %>%
-  mutate_at(1:12,~log10(.)) %>%
+  mutate_at(1:17,~log10(.)) %>%
   t %>%
   as.data.frame %>%
   ade4::dudi.pca(scannf = F,nf=3) %>% .$li %>% ade4::s.label()
@@ -273,7 +443,7 @@ df %>% as.data.frame() %>%
   xlim(c(2, 4)) + theme_void() +
   scale_fill_brewer("",type="qual")
 
-
+ggsave("agp_microbiota_types.pdf")
 
 ```
 
