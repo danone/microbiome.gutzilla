@@ -102,7 +102,7 @@ for(i in 1:5) {
 
   set.seed(seeds[i])
 
-  fit_genus <- mclapply(1:20, dmn, count=t(genus_sample_id_select), verbose=FALSE, mc.cores=20)
+  fit_genus <- mclapply(c(1,2,3,6,10:30,60,100), dmn, count=t(genus_sample_id_select), verbose=FALSE, mc.cores=20)
 
   fit_genus_list[[i]] = fit_genus
 
