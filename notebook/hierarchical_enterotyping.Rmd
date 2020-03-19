@@ -158,7 +158,10 @@ fit_genus_bootstrap[[4]] = fit_genus_list
 load("../fit_genus_list_5.rda")
 fit_genus_bootstrap[[5]] = fit_genus_list
 
+load("fit_genus_bootstrap.rda")
+
 ```
+
 
 
 ```{r}
@@ -209,6 +212,8 @@ lplc_df %>% as.data.frame %>%
   xlim(1,21) + ggtitle("Laplace optimun") + xlab("Dirichlet component")+
   theme_bw() + scale_x_continuous(limits = c(1,20.5), breaks = scales::pretty_breaks(n = 20))
 
+lplc_df %>% as.data.frame %>% 
+  summarise_all(which.min)
 
 ```
 
@@ -236,8 +241,8 @@ as_tibble(BIC)  %>% tibble::rowid_to_column("k") %>% reshape2::melt(id.vars="k")
 ```{r fig.height=6, fig.width=12}
 
 
-fit_genus_list = fit_genus_bootstrap[[1]]
-best_genus_lplc = 17
+fit_genus_list = fit_genus_bootstrap[[5]]
+best_genus_lplc = 19
 
 enterotypes =
 
@@ -255,7 +260,7 @@ genus %>%
   tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus_df
 
 
-heatmapdmn(t(genus_df[,colnames(genus_df) %in% rownames(enterotypes)]),fit_genus_list[[1]][[1]],fit_genus_list[[1]][[best_genus_lplc]])
+#heatmapdmn(t(genus_df[,colnames(genus_df) %in% rownames(enterotypes)]),fit_genus_list[[1]][[1]],fit_genus_list[[1]][[best_genus_lplc]])
 
 
 
@@ -290,6 +295,21 @@ df %>% as.data.frame() %>%
   ggplot() + geom_tile(aes(x=variable,y=taxa,fill=value)) + scale_fill_viridis_c()
 
 ```
+
+
+look at theta per component
+```{r}
+
+fitted(fit_genus_list[[1]][[best_genus_lplc]])
+
+mixturewt(fit_genus_list[[4]][[1]])
+
+mixturewt(fit_genus_list[[1]][[best_genus_lplc]])
+
+
+
+```
+
 
 
 ```{r}
@@ -421,7 +441,7 @@ ade4::s.label(et_metadata_pca$li, yax=2)
 
 df %>% as.data.frame() %>%
   select(-diff,-cdiff,-Mean) %>%
-  mutate_at(1:17,~log10(.)) %>%
+  mutate_at(1:19,~log10(.)) %>%
   t %>%
   as.data.frame %>%
   ade4::dudi.pca(scannf = F,nf=3) %>% .$li %>% ade4::s.label()
@@ -430,7 +450,7 @@ df %>% as.data.frame() %>%
   select(-diff,-cdiff,-Mean) %>%
   tibble::rownames_to_column("taxa") %>%
   as_tibble %>%
-  .[c(1:4,14),] %>%
+  .[c(1:3,6,14),] %>%
   reshape2::melt(id.vars="taxa") %>%
   group_by(variable) %>%
   mutate(ymax=cumsum(value)) %>%
@@ -450,8 +470,59 @@ ggsave("agp_microbiota_types.pdf")
 reclassify all dataset
 ```{r}
 
+# fit_genus_list[[1]][[best_genus_lplc]] %>%
+#   mixture(assign=TRUE) %>% as.data.frame %>% set_colnames(c("Enterotypes_id"))
+
+genus_select=rownames(fitted(fit_genus_bootstrap[[1]][[1]][[best_genus_lplc]]))
+genus %>%
+      select(-outliers) %>%
+      tibble::column_to_rownames("taxa") %>% .[genus_select,]-> genus_df
+
+genus_df %>% colnames() %>% data.frame(sample_name=.) -> enterotypes_clusters_df
 
 
+ k=1
+for(i in 1:5) {
+  
+  for(j in 1:5){
+    
+
+   
+    
+    predict(fit_genus_bootstrap[[i]][[j]][[best_genus_lplc]], t(genus_df), assign = TRUE) %>%
+      reshape2::melt() %>%
+      group_by(Var1) %>%
+      filter(value==max(value)) %>%
+      dplyr::rename(`#SampleID`="Var1", Enterotypes_id="Var2") %>%
+      select(`#SampleID`,Enterotypes_id) -> enterotypes_prediction_max
+    
+    colnames(enterotypes_prediction_max) = c("sample_name",paste0("Enterotypes_id_",k))
+    
+    enterotypes_clusters_df=
+    enterotypes_clusters_df %>%
+      merge(enterotypes_prediction_max, by="sample_name")
+    
+    cat(k,"\n")
+    k=k+1
+   
+    
+  }
+  
+  
+}
+
+ enterotypes_clusters_dist = matrix(nr=25,nc=25)  
+
+ for(i in 1:25) {
+     for (j in 1:25) {
+     
+     enterotypes_clusters_dist[i,j] = mclust::adjustedRandIndex(enterotypes_clusters_df[-1][,i],enterotypes_clusters_df[-1][,j])
+     
+     
+   }
+ }
+ 
+ 
 
 ```
 
