@@ -13,16 +13,16 @@ shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
 
 ```
 
-boxplot enterotypes vs shanonn
+boxplot enterotypes vs shannon
 ```{r}
 
-enterotypes=read.table("enterotypes_12.txt", sep="\t")
+#enterotypes=read.table("enterotypes_19.txt", sep="\t")
 
 merge(enterotypes,shannon, by="row.names") %>%
   dplyr::rename(`#SampleID`="Row.names") -> enterotypes_alpha_div
   
 enterotypes_alpha_div %>% 
-  ggplot()   + geom_boxplot(aes(x=Enterotypes_id %>% as.character,y=shannon))
+  ggplot()   + geom_boxplot(aes(x=paste0("m",Enterotypes_id %>% as.character),y=shannon))
   
 
 ```

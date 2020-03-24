@@ -15,7 +15,7 @@ genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rowname
 
 ```
 
-load metadata (cleaned)
+load metadata (cleaned) and add united nation subregions
 ```{r}
 
 data("UNSD_countries")
@@ -67,7 +67,7 @@ table(metadata$`Sub-region Name`)
 
 ```
 
-
+import outliers to filter them out and select the top 30 genus based on read mass.
 
 ```{r}
 outliers = readLines(con="outliers_samples.txt")
@@ -140,35 +140,35 @@ save(fit_genus_list, file="fit_genus_list.rda")
 
 ```
 
-
+load DMM model fit from boostrap
 ```{r}
 
 #source("enterotypes_bootstrap.R")
 
 
-fit_genus_bootstrap = vector("list",5)
-load("../fit_genus_list_1.rda")
-fit_genus_bootstrap[[1]] = fit_genus_list
-load("../fit_genus_list_2.rda")
-fit_genus_bootstrap[[2]] = fit_genus_list
-load("../fit_genus_list_3.rda")
-fit_genus_bootstrap[[3]] = fit_genus_list
-load("../fit_genus_list_4.rda")
-fit_genus_bootstrap[[4]] = fit_genus_list
-load("../fit_genus_list_5.rda")
-fit_genus_bootstrap[[5]] = fit_genus_list
+# fit_genus_bootstrap = vector("list",5)
+# load("../fit_genus_list_1.rda")
+# fit_genus_bootstrap[[1]] = fit_genus_list
+# load("../fit_genus_list_2.rda")
+# fit_genus_bootstrap[[2]] = fit_genus_list
+# load("../fit_genus_list_3.rda")
+# fit_genus_bootstrap[[3]] = fit_genus_list
+# load("../fit_genus_list_4.rda")
+# fit_genus_bootstrap[[4]] = fit_genus_list
+# load("../fit_genus_list_5.rda")
+# fit_genus_bootstrap[[5]] = fit_genus_list
 
 load("fit_genus_bootstrap.rda")
 
 ```
 
 
+extract BIC and Laplace coefficients from boostrap models  
 
 ```{r}
-
-
 BIC_list = map(fit_genus_bootstrap, function(z) map(z, function(y) sapply(y, function(x){attr(x,"goodnessOfFit")[["BIC"]]}))) 
 lplc_list = map(fit_genus_bootstrap, function(z) map(z, function(y) sapply(y, function(x){attr(x,"goodnessOfFit")[["Laplace"]]})))
+k = map(fit_genus_bootstrap, function(z) map(z, function(y) sapply(y, function(x){attr(x,"mixture")$Weight %>% length})))[[1]][[1]]
 
 
 BIC_df = NULL
@@ -192,61 +192,108 @@ for(i in 1:5) {
     
   }
 }
+```
 
+
+plot BIC and laplace results
+```{r fig.height=6, fig.width=12}
+
+cowplot::plot_grid(
+
+BIC_df %>% as.data.frame %>% 
+  mutate(`Dirichlet component`=k) %>%
+  reshape2::melt(id.vars="Dirichlet component") %>% 
+  mutate(seed=rep(sort(rep(1:5, length(k))),5)) %>%
+  mutate(boot=sort(rep(paste0("boot_",1:5), length(k)*5))) %>%
+  ggplot() + geom_line(aes(x=`Dirichlet component`,y=value,group=variable,color=boot)) +
+  ggtitle("BIC optimun") + #xlab("Dirichlet component") +
+  theme_bw() + scale_x_continuous(limits = c(1,101), breaks = scales::pretty_breaks(n = 20)),
+
+lplc_df %>% as.data.frame %>% 
+  mutate(`Dirichlet component`=k) %>%
+  reshape2::melt(id.vars="Dirichlet component") %>% 
+  mutate(seed=rep(sort(rep(1:5, length(k))),5)) %>%
+  mutate(boot=sort(rep(paste0("boot_",1:5), length(k)*5))) %>%
+  ggplot() + geom_line(aes(x=`Dirichlet component`,y=value,group=variable,color=boot)) +
+  ggtitle("Laplace optimun") + #xlab("Dirichlet component") +
+  theme_bw() + scale_x_continuous(limits = c(1,101), breaks = scales::pretty_breaks(n = 20)),
 
 
 
 BIC_df %>% as.data.frame %>% 
-  summarise_all(which.min) %>%
-  reshape2::melt() %>%
-  ggplot() + geom_bar(aes(x=value)) + 
-  ggtitle("BIC optimun") + xlab("Dirichlet component") +
-  theme_bw() + scale_x_continuous(limits = c(1,20.5), breaks = scales::pretty_breaks(n = 20))
-
+  mutate(`Dirichlet component`=k) %>%
+  reshape2::melt(id.vars="Dirichlet component") %>% 
+  mutate(seed=rep(sort(rep(1:5, length(k))),5)) %>%
+  mutate(boot=sort(rep(paste0("boot_",1:5), length(k)*5))) %>%
+  group_by(boot,seed) %>%
+  filter(value==min(value)) %>%
+  ggplot() + geom_bar(aes(x=`Dirichlet component`)) + 
+  ggtitle("BIC optimun") + 
+  xlab("Dirichlet components")+
+  theme_bw() + scale_x_continuous(limits = c(1,30), breaks = scales::pretty_breaks(n = 30)),
 
 
 lplc_df %>% as.data.frame %>% 
-  summarise_all(which.min) %>%
-    reshape2::melt() %>%
-  ggplot() + geom_bar(aes(x=value)) + 
-  xlim(1,21) + ggtitle("Laplace optimun") + xlab("Dirichlet component")+
-  theme_bw() + scale_x_continuous(limits = c(1,20.5), breaks = scales::pretty_breaks(n = 20))
+  mutate(`Dirichlet component`=k) %>%
+  reshape2::melt(id.vars="Dirichlet component") %>% 
+  mutate(seed=rep(sort(rep(1:5, length(k))),5)) %>%
+  mutate(boot=sort(rep(paste0("boot_",1:5), length(k)*5))) %>%
+  group_by(boot,seed) %>%
+  filter(value==min(value)) %>%
+  ggplot() + geom_bar(aes(x=`Dirichlet component`)) + 
+  ggtitle("Laplace optimun") + 
+  xlim(1,30) +  xlab("Dirichlet components")+
+  theme_bw() + scale_x_continuous(limits = c(1,30), breaks = scales::pretty_breaks(n = 30)),
+labels = "AUTO"
+)
 
-lplc_df %>% as.data.frame %>% 
-  summarise_all(which.min)
+
 
 ```
+
+
+BIC and Laplace have a global optimun among differents seeds and bootstraps. All bootstraps found at least one model optimal fit at k=19. Majority of best model based on Laplace were k=19. For BIC, k=19 arrived in second postition. For downstream, analysis we then choose k=19.
 
 
 ```{r}
 
+rbind(lplc_df %>% as.data.frame %>% 
+  mutate(`Dirichlet component`=k, fit="Laplace") %>%
+  reshape2::melt(id.vars=c("Dirichlet component","fit")) %>% 
+  mutate(seed=rep(sort(rep(1:5, length(k))),5)) %>%
+  mutate(boot=sort(rep(paste0("boot_",1:5), length(k)*5))) ,
 
+
+BIC_df %>% as.data.frame %>% 
+  mutate(`Dirichlet component`=k, fit="BIC") %>%
+  reshape2::melt(id.vars=c("Dirichlet component","fit")) %>% 
+  mutate(seed=rep(sort(rep(1:5, length(k))),5)) %>%
+  mutate(boot=sort(rep(paste0("boot_",1:5), length(k)*5))) ) %>%
+  group_by(boot,seed,fit) %>%
+  filter(value==min(value)) %>%
+  filter(`Dirichlet component`==19) %>%
+  arrange(desc(value)) %>%
+  ungroup() %>%
+  group_by(fit) %>%
+  #filter(boot != "boot_1")
+  top_n(3,value)
 
 ```
 
-
-
-
-```{r fig.height=3, fig.width=10}
-
-names(lplc) = as.character(1:5)
-as_tibble(lplc)  %>% tibble::rowid_to_column("k") %>% reshape2::melt(id.vars="k") %>% ggplot() + geom_line(aes(x=k,y=value,group=variable))
-
-names(BIC) = as.character(1:5)
-as_tibble(BIC)  %>% tibble::rowid_to_column("k") %>% reshape2::melt(id.vars="k") %>% ggplot() + geom_line(aes(x=k,y=value,group=variable))
-
-```
+For downstream analysis, we choose models among bootstrap where BIC and Laplace showed k=19 as optimum. Among models, we choose the worst one to avoid model overfitting.
 
 
 ```{r fig.height=6, fig.width=12}
+boot=1
+seed=1
+fit_genus_list = fit_genus_bootstrap[[boot]]
+best_genus_lplc = 19 
+best_genus_lplc_idx = which(sapply(fit_genus_list[[1]], function(x) attr(x,"mixture")$Weight %>% length)==19) # 14th items from list corresponded to k=19 here
 
-
-fit_genus_list = fit_genus_bootstrap[[5]]
-best_genus_lplc = 19
 
 enterotypes =
 
-  fit_genus_list[[1]][[best_genus_lplc]] %>%
+  fit_genus_list[[seed]][[best_genus_lplc_idx]] %>%
   mixture(assign=TRUE) %>% as.data.frame %>% set_colnames(c("Enterotypes_id"))
 
 
@@ -261,14 +308,17 @@ genus %>%
 
 
 #heatmapdmn(t(genus_df[,colnames(genus_df) %in% rownames(enterotypes)]),fit_genus_list[[1]][[1]],fit_genus_list[[1]][[best_genus_lplc]])
+```
 
 
 
+
+```{r fig.height=6, fig.width=14}
 ###################################################
 ### code chunk number 11: posterior-mean-diff
 ###################################################
-p0 <- fitted(fit_genus_list[[1]][[1]], scale=TRUE)     # scale by theta
-pbest <- fitted(fit_genus_list[[1]][[best_genus_lplc]], scale=TRUE)
+p0 <- fitted(fit_genus_list[[seed]][[1]], scale=TRUE)     # scale by theta
+pbest <- fitted(fit_genus_list[[seed]][[best_genus_lplc_idx]], scale=TRUE)
 colnames(pbest) <- paste("m", 1:best_genus_lplc, sep="")
 (meandiff <- colSums(abs(pbest - as.vector(p0))))
 sum(meandiff)
@@ -285,28 +335,42 @@ df %>% as.data.frame()
 
 df_gutzilla = df %>% as.data.frame()
 
+
+
 df %>% as.data.frame() %>%
   tibble::rownames_to_column("taxa") %>%
+  mutate(taxa=factor(taxa, levels=row.names(df))) %>% 
   reshape2::melt(id.vars="taxa") %>%
   filter(!variable %in% c("Mean","diff","cdiff")) %>%
   #group_by(taxa) %>%
   #mutate(total = sum(value)) %>%
   #mutate(value=value/total) %>%
-  ggplot() + geom_tile(aes(x=variable,y=taxa,fill=value)) + scale_fill_viridis_c()
+  ggplot() + 
+  geom_tile(aes(x=variable,y=taxa,fill=value)) + 
+  scale_fill_viridis_c("DMM model alpha") +
+  ylab("taxa") +
+  xlab("DMM components")
+  
+
 
 ```
+
 
 
 look at theta per component
 ```{r}
 
-fitted(fit_genus_list[[1]][[best_genus_lplc]])
+#fitted(fit_genus_list[[1]][[best_genus_lplc]])
 
-mixturewt(fit_genus_list[[4]][[1]])
+mixturewt(fit_genus_list[[seed]][[1]])
 
-mixturewt(fit_genus_list[[1]][[best_genus_lplc]])
+mixturewt(fit_genus_list[[seed]][[best_genus_lplc_idx]])
 
-
+mixturewt(fit_genus_list[[seed]][[best_genus_lplc_idx]]) %>% 
+  tibble::rowid_to_column("k") %>% 
+  ggplot() + 
+  geom_bar(aes(x=k,y=theta),stat="identity") + 
+  geom_hline(yintercept = mixturewt(fit_genus_list[[seed]][[1]])$theta, col="red")
 
 ```
 
@@ -449,6 +513,9 @@ df %>% as.data.frame() %>%
 df %>% as.data.frame() %>%
   select(-diff,-cdiff,-Mean) %>%
   tibble::rownames_to_column("taxa") %>%
+  mutate(taxa2=taxa) %>%
+  mutate(taxa2=ifelse())
+  
   as_tibble %>%
   .[c(1:3,6,14),] %>%
   reshape2::melt(id.vars="taxa") %>%
@@ -525,4 +592,147 @@ for(i in 1:5) {
  
 
 ```
+
+### classify data with the choosen model
+
+
+```{r}
+
+
+
+predict(fit_genus_list[[1]][[14]], t(genus_df), assign = TRUE) %>%
+  reshape2::melt() %>%
+  group_by(Var1) %>%
+  filter(value==max(value)) %>%
+  dplyr::rename(`sample_name`="Var1", Enterotypes_id="Var2") %>%
+  mutate(set=ifelse(sample_name %in% row.names(attr(fit_genus_list[[1]][[14]],"group")), "train", "predicted")) -> enterotypes_prediction
+
+
+enterotypes_prediction %>%
+  ggplot() + geom_histogram(aes(x=value, fill=value>0.80), bins = 50) + 
+  facet_wrap(~set) + 
+  scale_x_continuous(limits = c(0,1.05), labels = scales::percent)
+
+
+```
+
+### export enterotypes with outliers
+
+```{r}
+
+enterotypes_prediction %>%
+  as.data.frame %>%
+  rbind(data.frame(sample_name = outliers,Enterotypes_id=NA,value=NA,set="outliers", stringsAsFactors = FALSE)) %>%
+  write.csv2(file="enterotypes_prediction_outliers.csv")
+
+
+```
+
+
+
+
+
+
+## Enterotypes vs Age and Richness
+
+
+### Age
+
+
+```{r}
+
+metadata %>%
+  merge(enterotypes, by.x="sample_name", by.y="row.names", all.y="TRUE") %>%
+  select(Enterotypes_id, age_years) %>% ggplot() + geom_boxplot(aes(x=Enterotypes_id%>% as.character, y=age_years))
+  group_by(Enterotypes_id) %>%
+  summarise(age_years=mode(age_years))
+  
+
+```
+
+
+
+## richness
+
+
+```{r}
+
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "agp")
+shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
+
+merge(enterotypes_prediction,shannon,by.x="sample_name", by.y="row.names")  -> enterotypes_alpha_div
+  
+enterotypes_alpha_div %>% 
+  ggplot()   + 
+  geom_boxplot(aes(x=paste0("m",Enterotypes_id %>% as.character),y=shannon, fill=set)) +
+  xlab("DMM based clusters") + ylab("alpha-diversity (shannon)")
+
+
+```
+
+
+
+
+## check fibres
+
+
+```{r}
+
+fibre_path = system.file("data-raw/vioscreen/FICHIER_JULIEN_FIBER_HOSTSUBJECTID_2.xlsx", package = "agp")
+
+readxl::read_xlsx(fibre_path) %>%
+  select(-FIBER...6) %>%
+  dplyr::rename(FIBER="FIBER...4") -> fibre_df
+  
+
+colnames(fibre_df) = colnames(fibre_df) %>% stringr::str_to_lower()
+
+```
+
+n=1275 with fiber and enterotypes data
+
+```{r}
+
+fibre_df %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>% 
+  ggplot() + 
+  geom_boxplot(aes(y=shannon,x=paste0("Q",quartile_fiber),fill=paste0("Q",quartile_fiber))) +
+  xlab("fiber\nquartiles") + ylab("alpha-diversity (shannon)") +
+  scale_fill_brewer("fiber\nquartiles",type="div",palette = 2)
+
+
+fibre_df %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>% 
+  ggplot() + 
+  geom_boxplot(aes(y=shannon,x=paste0("m",Enterotypes_id %>% as.character),fill=paste0("Q",quartile_fiber))) +
+  xlab("Microbiota DMM based clusters") + ylab("alpha-diversity (shannon)") +
+  scale_fill_brewer("fiber\nquartiles",type="div",palette = 2)
+
+
+fibre_df %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>% 
+  group_by(Enterotypes_id) %>%
+  do(with(.,kruskal.test(.$shannon,.$quartile_fiber, method="spearman") %>% broom::tidy() ))
+
+fibre_df %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>% 
+  group_by(Enterotypes_id) %>%
+  summarise(n=n())
+
+fibre_df %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>% 
+  filter(Enterotypes_id %in% c(2,5,6,7,13)) %>%
+  ggplot() + 
+  geom_boxplot(aes(y=shannon,x=paste0("m",Enterotypes_id %>% as.character),fill=paste0("Q",quartile_fiber))) +
+  xlab("Microbiota DMM based clusters") + ylab("alpha-diversity (shannon)") +
+  scale_fill_brewer("fiber\nquartiles",type="div",palette = 2)
+
+
+
+
+```
+
+
+
+
 
