@@ -40,6 +40,15 @@ for(i in 1:5) {
 
 }
 
+# collect BIC score to find the best fit
+BIC = vector("list",5)
+
+for(i in 1:5) {
+
+  BIC[[i]] <- sapply(fit_genus_list[[i]], function(x){attr(x,"goodnessOfFit")[["BIC"]]})
+
+}
+
 # select the best number of cluster based on majority rule
 
 best_genus_lplc =
