@@ -1,0 +1,344 @@
+---
+title: "microbiota vs diet distance"
+output: html_notebook
+---
+
+
+
+```{r}
+
+library(tidyverse)
+
+devtools::load_all()
+
+
+
+```
+
+
+
+
+```{r}
+
+load(system.file("data-raw/Food_Tree_Danone_Unifrac/Food_tree3_Enone_SFALSE_Duunifrac.RData", package = "agp"))
+food_danone_uwunifrac = distance
+
+load(system.file("data-raw/Food_Tree_Danone_Unifrac/Food_tree3_Enone_SFALSE_Dwunifrac.RData", package = "agp"))
+food_danone_wunifrac = distance
+
+load(system.file("data-raw/Food_Tree_UCSD_Unifrac/Food_tree_Enone_SFALSE_Duunifrac.RData", package = "agp"))
+food_UCSD_uwunifrac = distance
+
+load(system.file("data-raw/Food_Tree_UCSD_Unifrac/Food_tree_Enone_SFALSE_Dwunifrac.RData", package = "agp"))
+food_UCSD_wunifrac = distance
+
+
+load(system.file("data-raw/Food_Items_Jaccard/Food_items_Enone_SFALSE_Djaccard.RData", package = "agp"))
+food_jaccard = distance
+
+
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+
+
+```
+
+
+```{r}
+
+link_hostID_SampleID = read.csv2(system.file("data-raw/Link_HOSTID_1SAMPLE_Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"))
+
+vios_id = colnames(as.matrix(food_danone_uwunifrac))
+
+
+link_hostID_SampleID %>%
+  filter(VIOSCREEN_SURVEYID %in% vios_id) %>%
+  pull(SAMPLE_NAME) %>% as.character -> sample_to_select
+
+length(sample_to_select)
+
+
+
+
+
+```
+
+
+
+```{r}
+
+genus %>%
+  filter(taxa %in% names(top_genus_mass) ) %>% 
+  tibble::column_to_rownames("taxa") %>%
+  select(sample_to_select) %>%
+  mutate_all(function(x) x/sum(x)) %>% BiotypeR::dist.JSD() -> genus_jsd
+
+genus %>%
+  filter(taxa %in% names(top_genus_mass) ) %>% 
+  tibble::column_to_rownames("taxa") %>%
+  select(sample_to_select) %>%
+  mutate_all(function(x) x/sum(x)) %>%
+  t() %>%
+  vegan::vegdist() -> genus_bc
+ 
+genus %>%
+  filter(taxa %in% names(top_genus_mass) ) %>% 
+  tibble::column_to_rownames("taxa") %>%
+  select(sample_to_select) %>%
+  mutate_all(function(x) x/sum(x)) %>%
+  t() %>%
+  vegan::vegdist(method = "jaccard") -> genus_jac
+  
+save(genus_jsd, file="genus_jsd.rda")
+
+
+
+```
+
+
+
+```{r}
+
+
+link_hostID_SampleID %>%
+  filter(VIOSCREEN_SURVEYID %in% vios_id) %>%
+  pull(VIOSCREEN_SURVEYID) %>% as.character() -> vios_id
+
+link_hostID_SampleID %>%
+  filter(VIOSCREEN_SURVEYID %in% vios_id) %>%
+  pull(SAMPLE_NAME) %>% as.character() -> sample_id
+
+
+genus_jsd %>% as.matrix %>% .[sample_id,sample_id] %>% as.dist -> genus_jsd
+
+genus_bc %>% as.matrix %>% .[sample_id,sample_id] %>% as.dist -> genus_bc
+
+food_danone_uwunifrac %>% as.matrix %>% .[vios_id,vios_id] %>% as.dist -> food_danone_uwunifrac
+food_UCSD_uwunifrac %>% as.matrix %>% .[vios_id,vios_id] %>% as.dist -> food_UCSD_uwunifrac
+
+food_danone_wunifrac %>% as.matrix %>% .[vios_id,vios_id] %>% as.dist -> food_danone_wunifrac
+food_UCSD_wunifrac %>% as.matrix %>% .[vios_id,vios_id] %>% as.dist -> food_UCSD_wunifrac
+
+food_jaccard %>% as.matrix %>% .[vios_id,vios_id] %>% as.dist -> food_jaccard
+
+```
+
+
+
+## JSD
+
+### danone UW-UNIFRAC
+
+```{r}
+set.seed(01121983)
+
+mantelT <- vegan::mantel(
+  genus_jsd ,
+  food_danone_uwunifrac ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_jsd ,
+  food_danone_uwunifrac,
+  permutations=99)
+
+mantelT
+procT
+
+```
+
+
+### danone W-UNIFRAC
+
+```{r}
+
+
+mantelT <- vegan::mantel(
+  genus_jsd ,
+  food_danone_wunifrac ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_jsd ,
+  food_danone_wunifrac,
+  permutations=99)
+
+mantelT
+procT
+
+```
+
+### UCSD UW-UNIFRAC
+```{r}
+
+set.seed(01121983)
+
+mantelT <- vegan::mantel(
+  genus_jsd ,
+  food_UCSD_uwunifrac ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_jsd ,
+  food_UCSD_uwunifrac,
+  permutations=99)
+
+mantelT
+procT
+
+```
+
+
+
+### UCSD W-UNIFRAC
+
+```{r}
+
+set.seed(01121983)
+
+mantelT <- vegan::mantel(
+  genus_jsd ,
+  food_UCSD_wunifrac ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_jsd ,
+  food_UCSD_wunifrac,
+  permutations=99)
+
+mantelT
+procT
+
+```
+
+
+
+
+## BC
+
+### danone UW-UNIFRAC
+
+```{r}
+set.seed(01121983)
+
+mantelT <- vegan::mantel(
+  genus_bc ,
+  food_danone_uwunifrac ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_bc ,
+  food_danone_uwunifrac,
+  permutations=99)
+
+mantelT
+procT
+
+```
+
+
+### danone W-UNIFRAC
+
+```{r}
+
+
+mantelT <- vegan::mantel(
+  genus_bc ,
+  food_danone_wunifrac ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_bc ,
+  food_danone_wunifrac,
+  permutations=99)
+
+mantelT
+procT
+
+```
+
+### UCSD UW-UNIFRAC
+```{r}
+
+set.seed(01121983)
+
+mantelT <- vegan::mantel(
+  genus_bc ,
+  food_UCSD_uwunifrac ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_bc ,
+  food_UCSD_uwunifrac,
+  permutations=99)
+
+mantelT
+procT
+
+```
+
+
+
+### UCSD W-UNIFRAC
+
+```{r}
+
+set.seed(01121983)
+
+mantelT <- vegan::mantel(
+  genus_bc ,
+  food_UCSD_wunifrac ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_bc ,
+  food_UCSD_wunifrac,
+  permutations=99)
+
+mantelT
+procT
+
+```
+
+
+### Jaccard
+
+
+
+```{r}
+set.seed(01121983)
+
+mantelT <- vegan::mantel(
+  genus_jsd ,
+  food_jaccard ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_jsd ,
+  food_jaccard,
+  permutations=99)
+
+mantelT
+procT
+
+```
+
+
+```{r}
+set.seed(01121983)
+
+mantelT <- vegan::mantel(
+  genus_jac ,
+  food_jaccard ,
+  method="spearman",permutations=99)
+
+procT <- vegan::protest(
+  genus_jac ,
+  food_jaccard,
+  permutations=99)
+
+mantelT
+procT
+
+```
