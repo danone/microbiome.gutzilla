@@ -17,6 +17,21 @@ library(ggplot2)
 
 
 
+## load metadata
+```{r}
+
+metadata = readr::read_tsv(system.file("data-raw/qiime/generated-files-20190512/ag.txt", package = "agp"))
+
+country_info = readr::read_tsv(system.file(package="agp", "data-raw/countryInfo.txt"), comment = "#", col_names = FALSE, na = "") %>%
+  select(X5,X9) %>%
+  dplyr::rename(country="X5", continent="X9" )
+
+```
+
+
+
+
+
 ## import biom and tax file
 
 I have difficulities to import directly qza file either with `qiime2R::read_qza` either the biom file directly with `biomformat`.
@@ -76,6 +91,11 @@ load(file="otu.rda")
 tax_path  = system.file("data-raw","qiime","generated-files-20190512","ag.fna.nobloom.min2.min1k.taxonomy.qza", package="agp")
 tax  = qiime2R::read_qza(tax_path)
 
+fna_path = system.file("data-raw","qiime","generated-files-20190512","ag.fna.nobloom.min2.min1k.qza", package="agp") 
+fna      = qiime2R::read_qza(fna_path)
+
+
+
 ```
 
 ### pivot longer OTU table
@@ -134,7 +154,10 @@ saveRDS(otu_longer_all, file = "otu_longer_all.rds")
 ```{r}
 
 tax$data %>% 
-  filter(Taxon %in% grep("Bifidobacterium",Taxon,value = TRUE)) %>% pull(Feature.ID) -> bif_otu
+  #mutate(Taxon = Taxon %>% as.character) %>%
+  filter(Taxon %in% grep("Bifidobacterium",Taxon,value = TRUE), Confidence > 0.90) %>% pull(Feature.ID) -> bif_otu
+
+
 
 otu_longer_all %>%
   #filter(sample_id %in% c("10317.000042798","10317.000058805")) %>%
@@ -165,19 +188,177 @@ bif_stat_summary %>%
 bif_stat_summary %>%
   filter(n>10) %>%
   merge(tax$data, by.x = "#OTU ID", by.y="Feature.ID") %>%
-  arrange(desc(n))
+  arrange(desc(n)) %>% pull(`#OTU ID`) -> prevalent_bif
 
 
 
 ```
+
+
+
+```{r}
+
+metadata %>%
+  select("#SampleID","age_cat","age_corrected","sex","country_of_birth","country") %>%
+  merge(.,otu_clr, by.x="#SampleID", by.y="sample_id") -> otu_metadata
+
+otu_metadata %>%
+  filter(`#OTU ID` %in% bif_otu) %>%
+  group_by(`#OTU ID`,age_cat) %>%
+  summarise(q25=quantile(count,0.25),q50=quantile(count,0.50),q75=quantile(count,0.75), n=n() ) -> bif_stat_summary_by_age
+
+
+metadata %>%
+  select("#SampleID","age_cat","age_corrected","sex","country_of_birth","country") %>%
+  group_by(age_cat) %>%
+  filter(age_cat != "baby") %>%
+  filter(!is.na(age_cat), age_cat!="Not provided") %>%
+  sample_n(size=300) %>% pull(`#SampleID`) -> sample_sample_id
+
+
+otu_metadata %>%
+  filter(`#SampleID` %in% sample_sample_id) %>%
+  filter(`#OTU ID` %in% bif_otu) %>%
+  group_by(`#OTU ID`,age_cat) %>%
+  summarise(q25=quantile(count,0.25),q50=quantile(count,0.50),q75=quantile(count,0.75), n=n() ) %>%
+  ungroup() %>%
+  select(`#OTU ID`, age_cat) %>%
+  group_by(age_cat) %>%
+  summarise(n=n())
+
+
+
+otu_metadata %>% 
+  filter(`#OTU ID` %in% bif_otu) %>%
+  group_by(`#SampleID`,age_cat) %>%
+  summarise(n=n()) %>%
+  ungroup() %>%
+  group_by(age_cat) %>%
+  summarise(q25=quantile(n,0.25),q50=quantile(n,0.50),q75=quantile(n,0.75))
+
+
+
+```
+
+
+
+```{r fig.height=10, fig.width=10}
+otu_clr %>% pull(sample_id) %>% unique %>% length -> nb_samples
+
+bif_stat_summary_by_age %>% 
+  mutate(p=n/nb_samples) %>%
+  filter(!is.na(age_cat), age_cat!="Not provided") %>%
+  ungroup() %>%
+  mutate(age_cat=as.factor(age_cat)) %>% 
+  filter(`#OTU ID` %in% prevalent_bif) %>%
+  mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
+  ggplot() + geom_point(aes(x=age_cat,y=p)) + facet_wrap(~`#OTU ID`, scale="free_y", ncol=3)
+  
+
+bif_stat_summary_by_age %>% 
+  mutate(p=n/nb_samples) %>%
+  filter(!is.na(age_cat), age_cat!="Not provided") %>%
+  ungroup() %>%
+  mutate(age_cat=as.factor(age_cat)) %>% 
+  filter(`#OTU ID` %in% prevalent_bif) %>%
+  mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
+  ggplot() + geom_line(aes(x=age_cat,y=q50, group=`#OTU ID`)) + facet_wrap(~`#OTU ID`, scale="free_y", ncol=3)
+
+
+bif_stat_summary_by_age %>% 
+  mutate(p=n/nb_samples) %>%
+  filter(!is.na(age_cat), age_cat!="Not provided") %>%
+  ungroup() %>%
+  mutate(age_cat=as.factor(age_cat)) %>% 
+  filter(`#OTU ID` %in% prevalent_bif) %>%
+  mutate(age_cat=age_cat %>% forcats::fct_relevel("baby","child","teen",after=0)) %>%
+  ggplot() + geom_line(aes(x=age_cat,y=q50, group=`#OTU ID`)) + facet_wrap(~`#OTU ID`, scale="free_y", ncol=3)
+
+
+
+
+```
+
 
 ```{r}
 
 
 
+fna$data[names(fna$data) %in% bif_otu] %>%
+  ape::as.DNAbin() -> fna_dnabin
+  
+  ape::dist.dna(fna_dnabin, model = "raw") -> fna_dist
+  
+
+  
+  
+
+
+bif_clust = fpc::kmeansCBI(krange=4, data = fna_dist, criterion="ch")
+
+
+
+bif_phylo_pcoa = ade4::dudi.pco(sqrt(fna_dist), scannf=FALSE, nf=3)
+
+bif_phylo_pcoa$li %>%
+  merge(bif_stat_summary, by.x="row.names", by.y="#OTU ID") %>%
+  merge(as.matrix(bif_clust$partition) %>% as.data.frame(), by.x="Row.names", by.y="row.names") %>%
+  mutate(cut_n=cut(log10(n),4)) %>%
+  ggplot() + geom_point(aes(x=A1,y=A2, col=as.character(V1))) + facet_wrap(~cut_n)
+
+cumsum(bif_phylo_pcoa$eig/sum(bif_phylo_pcoa$eig))
+
+
+```
+
+### classify reads using decipher
+```{r}
+library("DECIPHER")
+
+load("~/SILVA_SSU_r132_March2018.RData")
+load("~/Contax_v1_March2018.RData")
+load("~/GTDB_r89-mod_June2019.RData")
+
+```
+
+
+```{r}
+
+fna$data[names(fna$data) %in% bif_otu] -> bif_DNAStringSet
+dna <- bif_DNAStringSet
+ids <- IdTaxa(dna, trainingSet, strand="top", processors=NULL, verbose=FALSE) # use all processors
+ranks <- c("domain", "phylum", "class", "order", "family", "genus", "species") # ranks of interest
+# Convert the output object of class "Taxa" to a matrix analogous to the output from assignTaxonomy
+taxid <- t(sapply(ids, function(x) {
+        m <- match(ranks, x$rank)
+        taxa <- x$taxon[m]
+        #taxa[startsWith(taxa, "unclassified_")] <- NA
+        taxa
+}))
+
+colnames(taxid) = ranks
+
+taxid %>%
+  as.data.frame() %>%
+  filter(is.na(genus)) 
+
+taxid %>%
+  as.data.frame() %>%
+  unique()
 
 ```
 
 
 
+```{r}
+
+bif_phylo_pcoa$li %>%
+  merge(bif_stat_summary, by.x="row.names", by.y="#OTU ID") %>%
+  merge(as.matrix(bif_clust$partition) %>% as.data.frame(), by.x="Row.names", by.y="row.names") %>%
+  merge(taxid %>% as.data.frame, by.x="Row.names", by.y="row.names") %>%
+  mutate(cut_n=cut(log10(n),4)) %>%
+  ggplot() + geom_point(aes(x=A1,y=A2, col=as.character(V1))) + facet_grid(genus~cut_n)
+
+
+```
 
