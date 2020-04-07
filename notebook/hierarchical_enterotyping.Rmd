@@ -67,6 +67,25 @@ table(metadata$`Sub-region Name`)
 
 ```
 
+
+```{r}
+
+cowplot::plot_grid(
+
+metadata %>%
+  mutate(age_cat = age_cat %>% forcats::fct_relevel(c("baby","child","teen"), after=0 )) %>%
+  filter(!is.na(age_cat)) %>%
+  ggplot() + geom_bar(aes(x=age_cat)) + theme_bw(),
+
+metadata %>%
+  filter(!is.na(age_cat), !is.na(sex)) %>%
+  ggplot() + geom_bar(aes(x=sex)) + theme_bw(), rel_widths = c(2,1))
+
+
+```
+
+
+
 import outliers to filter them out and select the top 30 genus based on read mass.
 
 ```{r}
@@ -510,14 +529,16 @@ df %>% as.data.frame() %>%
   as.data.frame %>%
   ade4::dudi.pca(scannf = F,nf=3) %>% .$li %>% ade4::s.label()
 
+
+
+
 df %>% as.data.frame() %>%
   select(-diff,-cdiff,-Mean) %>%
   tibble::rownames_to_column("taxa") %>%
-  mutate(taxa2=taxa) %>%
-  mutate(taxa2=ifelse())
-  
-  as_tibble %>%
-  .[c(1:3,6,14),] %>%
+  #mutate(taxa2=taxa) %>%
+  #mutate(taxa2=ifelse())
+    as_tibble %>%
+  .[c(1:3,7,11),] %>%
   reshape2::melt(id.vars="taxa") %>%
   group_by(variable) %>%
   mutate(ymax=cumsum(value)) %>%
@@ -610,7 +631,7 @@ predict(fit_genus_list[[1]][[14]], t(genus_df), assign = TRUE) %>%
 
 enterotypes_prediction %>%
   ggplot() + geom_histogram(aes(x=value, fill=value>0.80), bins = 50) + 
-  facet_wrap(~set) + 
+  #facet_wrap(~set) + 
   scale_x_continuous(limits = c(0,1.05), labels = scales::percent)
 
 
@@ -732,7 +753,187 @@ fibre_df %>%
 
 ```
 
+## check type of plant
 
 
+```{r fig.height=5, fig.width=8}
+
+
+
+metadata %>%
+  select(sample_name,types_of_plants) %>%
+   mutate(types_of_plants=types_of_plants%>% forcats::fct_rev() %>% forcats::fct_relevel("More than 30", after=Inf) %>% forcats::fct_relevel("21 to 30", after=3)) %>%
+  na.omit() %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>% 
+  ggplot() + 
+  geom_boxplot(aes(y=shannon,x=types_of_plants,fill=types_of_plants)) +
+  xlab("nb type of plants per week") + ylab("alpha-diversity (shannon)") +
+  scale_fill_brewer("Type of plants",type="div",palette = 2) +
+  xlab("Type of plants") + ylab("alpha-diversity (shannon)") + ggtitle("all pop")
+
+metadata %>%
+  select(sample_name,types_of_plants) %>%
+  merge(fibre_df, by="sample_name") %>%
+  mutate(types_of_plants=types_of_plants%>% forcats::fct_rev() %>% forcats::fct_relevel("More than 30", after=Inf) %>% forcats::fct_relevel("21 to 30", after=3)) %>%
+  na.omit() %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>% 
+  ggplot() + 
+  geom_boxplot(aes(y=shannon,x=types_of_plants,fill=types_of_plants)) +
+  xlab("nb type of plants per week") + ylab("alpha-diversity (shannon)") +
+  scale_fill_brewer("Type of plants",type="div",palette = 2) +
+  xlab("Type of plants ") + ylab("alpha-diversity (shannon)") + ggtitle("with vioscreened only")
+
+
+
+metadata %>%
+  select(sample_name,types_of_plants) %>%
+   mutate(types_of_plants=types_of_plants%>% forcats::fct_rev() %>% forcats::fct_relevel("More than 30", after=Inf) %>% forcats::fct_relevel("21 to 30", after=3)) %>%
+  na.omit() %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>% 
+  ggplot() + 
+  geom_boxplot(aes(y=shannon,x=paste0("m",Enterotypes_id %>% as.character),fill=types_of_plants)) +
+  xlab("Microbiota DMM based clusters") + ylab("alpha-diversity (shannon)") +
+  scale_fill_brewer("Type of\nplant",type="div",palette = 2) + ggtitle("all pop")
+
+
+
+metadata %>%
+  select(sample_name,types_of_plants) %>%
+  merge(fibre_df, by="sample_name") %>%
+   mutate(types_of_plants=types_of_plants%>% forcats::fct_rev() %>% forcats::fct_relevel("More than 30", after=Inf) %>% forcats::fct_relevel("21 to 30", after=3)) %>%
+  na.omit() %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>% 
+  ggplot() + 
+  geom_boxplot(aes(y=shannon,x=paste0("m",Enterotypes_id %>% as.character),fill=types_of_plants)) +
+  xlab("Microbiota DMM based clusters") + ylab("alpha-diversity (shannon)") +
+  scale_fill_brewer("Type of\nplant",type="div",palette = 2) + ggtitle("with vioscreened only")
+
+
+
+
+
+```
+
+
+```{r}
+
+metadata %>%
+  select(sample_name,types_of_plants) %>%
+  merge(fibre_df, by="sample_name") %>%
+   mutate(types_of_plants=types_of_plants%>% forcats::fct_rev() %>% forcats::fct_relevel("More than 30", after=Inf) %>% forcats::fct_relevel("21 to 30", after=3)) %>%
+  na.omit() %>%
+  merge(enterotypes_alpha_div, by="sample_name") %>%
+  filter(Enterotypes_id %in% c(1,2,5,7,13,15)) %>%
+  ggplot() + geom_point(aes(x=fiber,y=shannon,col=types_of_plants)) + 
+  scale_color_brewer("Type of\nplant",type="div",palette = 2) + 
+  facet_wrap(~paste0("m",Enterotypes_id), scales = "free_y") + theme_dark() +
+  ggtitle("example of enterotypes")
+
+
+
+
+```
+
+
+
+
+## rescale enterotypes using world demographic data
+
+we will use UNSD subregion to rescale enterotypes proportion observed
+
+```{r}
+
+data("UNSD_pop_subregion")
+
+UNSD_pop_subregion %>%
+          mutate(Subregion = ifelse(Subregion %in% c("Melanesia","Micronesia","Polynesia"), "Oceania (others)",Subregion)) %>%
+          mutate(Subregion =  ifelse(Subregion %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",Subregion)) %>%
+          mutate(Subregion =  ifelse(Subregion %in% c("South-Eastern Asia"), "South-eastern Asia",Subregion)) %>%
+  ggplot() + geom_bar(aes(y=n_pop_2020, x=Subregion), stat="identity") +
+  theme(axis.text.x = element_text(angle = -90, vjust=0.5))
+
+
+
+metadata %>%
+  merge(enterotypes_prediction, by.x="sample_name", all.y="TRUE") %>%
+  select(Enterotypes_id,`Sub-region Name`) %>%
+  na.omit %>%
+  group_by(`Sub-region Name`) %>%
+  summarise(total=n()) %>%
+  ggplot() + geom_bar(aes(y=total, x=`Sub-region Name`), stat="identity") +
+  theme(axis.text.x = element_text(angle = -90, vjust=0.5))
+
+metadata %>%
+  merge(enterotypes_prediction, by.x="sample_name",  all.y="TRUE") %>%
+  select(`Sub-region Name`) %>%
+  na.omit %>%
+  group_by(`Sub-region Name`) %>%
+  summarise(total=n()) %>%
+  merge(UNSD_pop_subregion %>%
+          mutate(Subregion = ifelse(Subregion %in% c("Melanesia","Micronesia","Polynesia"), "Oceania (others)",Subregion)) %>%
+          mutate(Subregion =  ifelse(Subregion %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",Subregion)) %>%
+          mutate(Subregion =  ifelse(Subregion %in% c("South-Eastern Asia"), "South-eastern Asia",Subregion)) %>%
+                   group_by(Subregion) %>%
+                   summarise(n_pop_2020 = sum(n_pop_2020)),
+  by.x="Sub-region Name", by.y="Subregion", all.x=TRUE) %>%
+  mutate_if(is.numeric,function(x) x/sum(x) ) %>%
+  dplyr::rename(n_pop_agp_birth="total") -> region_n_pop_agp_unsd
+
+  region_n_pop_agp_unsd %>%
+  reshape2::melt(id.vars="Sub-region Name") %>%
+  ggplot() + 
+  geom_bar(aes(x=`Sub-region Name`, y=value, fill=variable), stat="identity", position = "dodge") +
+  theme(axis.text.x = element_text(angle = -90, vjust=0.5)) 
+
+  
+  
+  
+
+
+
+```
+
+```{r}
+
+metadata %>%
+  merge(enterotypes_prediction, by.x="sample_name",  all.y="TRUE") %>%
+  select(`Sub-region Name`,Enterotypes_id,set) %>%
+  ggplot() + geom_bar(aes(x=Enterotypes_id,fill=set)) 
+
+metadata %>%
+  merge(enterotypes_prediction, by.x="sample_name",  all.y="TRUE") %>%
+  select(`Sub-region Name`,Enterotypes_id,set) %>%
+  na.omit %>%
+  group_by(`Sub-region Name`,Enterotypes_id) %>%
+  summarise(n_per_et=n()) %>%
+  ungroup() %>%
+  group_by(`Sub-region Name`) %>%
+  mutate(n_per_region=sum(n_per_et)) %>%
+  ungroup() %>%
+  #mutate(n=n %>% (function(x) x / sum(x)) ) %>%
+  merge(UNSD_pop_subregion %>%
+          filter(!(Subregion == "Latin America and the Caribbean" & Type =="Region")) %>%
+          mutate(Subregion = ifelse(Subregion %in% "Oceania (Excluding Australia and New Zealand)", "Oceania (others)",Subregion)) %>%
+          #mutate(Subregion =  ifelse(Subregion %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",Subregion)) %>%
+          mutate(Subregion =  ifelse(Subregion %in% c("South-Eastern Asia"), "South-eastern Asia",Subregion)) ,
+                   
+                   #summarise(n_pop_2020 = sum(n_pop_2020)),
+  by.x="Sub-region Name", by.y="Subregion", all.x=TRUE) %>%
+  mutate(n_estimated_per_pop = (n_per_et * n_pop_2020)/n_per_region) %>%
+  select(-n_per_region,-Type,-n_pop_2020) %>%
+  mutate(p_per_et=n_per_et/sum(n_per_et), p_estimated_per_pop=n_estimated_per_pop/sum(n_estimated_per_pop))  -> enterotypes_by_UNSD_regions
+
+write.csv2(enterotypes_by_UNSD_regions, file="enterotypes_by_UNSD_regions.csv")
+  
+  
+enterotypes_by_UNSD_regions %>%
+  group_by(Enterotypes_id) %>%
+  summarise_if(is.numeric,sum) %>%
+  select(Enterotypes_id,p_per_et,p_estimated_per_pop) %>%
+  reshape2::melt(id.vars="Enterotypes_id") %>%
+  ggplot() + geom_bar(aes(x=Enterotypes_id,y=value,fill=variable), stat="identity", position = "dodge")
+
+
+```
 
 
