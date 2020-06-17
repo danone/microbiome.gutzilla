@@ -90,3 +90,90 @@ save(alpha_shannon_curated, file="alpha_shannon_curated.rda")
 ```
 
 
+## pathway abundance
+
+
+```{r}
+
+
+## update
+eh <- ExperimentHub()
+myquery <- query(eh, "curatedMetagenomicData")
+version <- "20170526."
+
+myquery.stool <- myquery[grepl("stool", myquery$title) & grepl("pathabundance", myquery$title) & grepl(version, myquery$title) & !grepl("VatanenT_2016", myquery$title) & !grepl("AsnicarF_2017", myquery$title), ]
+
+eset.list <- lapply(names(myquery.stool), function(x) myquery.stool[[x]])
+
+names(eset.list) <- gsub("-", "_", gsub(version, "", myquery.stool$title))
+
+for (i in 1:length(eset.list)) {
+    colnames(eset.list[[i]]) <- paste(names(eset.list)[[i]], colnames(eset.list[[i]]), sep = ".")
+    pData(eset.list[[i]]) <- pData(eset.list[[i]])[, !sapply(pData(eset.list[[i]]), function(x) all(is.na(x)))]
+    eset.list[[i]]$subjectID <- as.character(eset.list[[i]]$subjectID)
+}
+
+for (i in seq_along(eset.list)) {
+    eset.list[[i]] <- eset.list[[i]][!grepl("\\|", rownames(eset.list[[i]])), ]
+}
+
+pdat <- joinWithRnames(eset.list, FUN = pData)
+pdat$study <- sub("\\..+", "", rownames(pdat))
+ab <- joinWithRnames(eset.list, FUN = exprs)
+ab[is.na(ab)] <- 0
+eset_pathway <- ExpressionSet(assayData = as.matrix(ab), phenoData = AnnotatedDataFrame(pdat))
+
+
+```
+
+
+
+```{r}
+save(eset_pathway, file="curatedMetaG_pathway.rda")
+
+
+```
+
+
+## gene families
+
+
+```{r}
+
+
+
+## update
+eh <- ExperimentHub()
+myquery <- query(eh, "curatedMetagenomicData")
+version <- "20170526."
+
+myquery.stool <- myquery[grepl("stool", myquery$title) & grepl("genefamilies", myquery$title) & grepl(version, myquery$title) & !grepl("VatanenT_2016", myquery$title) & !grepl("AsnicarF_2017", myquery$title), ]
+
+eset.list <- lapply(names(myquery.stool), function(x) myquery.stool[[x]])
+
+names(eset.list) <- gsub("-", "_", gsub(version, "", myquery.stool$title))
+
+for (i in 1:length(eset.list)) {
+    colnames(eset.list[[i]]) <- paste(names(eset.list)[[i]], colnames(eset.list[[i]]), sep = ".")
+    pData(eset.list[[i]]) <- pData(eset.list[[i]])[, !sapply(pData(eset.list[[i]]), function(x) all(is.na(x)))]
+    eset.list[[i]]$subjectID <- as.character(eset.list[[i]]$subjectID)
+}
+
+for (i in seq_along(eset.list)) {
+    eset.list[[i]] <- eset.list[[i]][!grepl("\\|", rownames(eset.list[[i]])), ]
+}
+
+pdat <- joinWithRnames(eset.list, FUN = pData)
+pdat$study <- sub("\\..+", "", rownames(pdat))
+ab <- joinWithRnames(eset.list, FUN = exprs)
+ab[is.na(ab)] <- 0
+eset_genefamilies <- ExpressionSet(assayData = as.matrix(ab), phenoData = AnnotatedDataFrame(pdat))
+
+save(eset_genefamilies, file="curatedMetaG_genefamilies.rda")
+
+```
+
+
+
+
+
