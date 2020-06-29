@@ -112,14 +112,19 @@ genus %>%
   mutate(prev_bact_ratio = log2((Prevotella+1)/(Bacteroides+1))) %>%
   select(sample_id,prev_bact_ratio)
 
-prev_bact_delta =
+prev_bact_delta_df =
 merge(genus_bact_prev_ratio %>% 
-  mutate(idx="a") %>% 
-  head,genus_bact_prev_ratio %>% 
-  mutate(idx="a") %>% 
-  head, by="idx") %>% 
+  mutate(idx="a") ,
+  genus_bact_prev_ratio %>% 
+  mutate(idx="a") , by="idx") %>% 
   mutate(prev_bact_delta=abs(prev_bact_ratio.x-prev_bact_ratio.y)) %>%
   select(sample_id.x,sample_id.y,prev_bact_delta)
+
+prev_bact_delta_dist =
+reshape2::dcast(prev_bact_delta_df,sample_id.x~sample_id.y, value.var=prev_bact_delta) %>% 
+  tibble::column_to_rownames(sample_id.x) %>%
+  as.dist %>% usedist::dist_subset(sample_select)
+
 
 
 
