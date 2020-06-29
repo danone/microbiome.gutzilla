@@ -35,6 +35,13 @@ outliers = readLines(con="outliers_samples.txt")
 
 ```
 
+load enterotypes set from DMM analysis
+```{r}
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+```
+
 
 
 select based on top 30 read mass genus and remove outliers
@@ -72,7 +79,11 @@ genus_prop %>%
 
 genus_L1 = phateR::library.size.normalize(genus %>% t)
 
-genus_phate = phateR::phate(genus_L1)
+genus_phate = 
+  genus_L1 %>%
+  merge(enterotypes %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% 
+  tibble::column_to_rownames("Row.names") %>%
+  phateR::phate(gamma=0)
 
 
 
@@ -81,9 +92,17 @@ genus_phate = phateR::phate(genus_L1)
 
 
 ```{r}
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=Enterotypes_id%>%as.character), size=1, alpha=0.5) 
 
 
-ggplot(genus_phate) + geom_point(aes(x=PHATE1, y=PHATE2), size=1, alpha=0.5)
+
+```
+
+```{r}
+
+
 
 
 ```
