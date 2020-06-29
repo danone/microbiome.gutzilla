@@ -113,11 +113,12 @@ genus %>%
   select(sample_id,prev_bact_ratio)
 
 
-
-genus_bact_prev_ratio %>% 
+merge(genus_bact_prev_ratio %>% 
+  mutate(idx="a") %>% 
+  head,genus_bact_prev_ratio %>% 
+  mutate(idx="a") %>% 
+  head, by="idx") %>%
   
-  reshape2::melt()
-
 
 
 
