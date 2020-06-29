@@ -1,0 +1,141 @@
+---
+title: "compare JSD  distance with unifrac distance"
+output: html_notebook
+---
+
+
+```{r setup}
+
+library(dplyr)
+library(ggplot2)
+devtools::load_all()
+
+
+
+```
+
+
+
+
+load genus abundance
+```{r}
+
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+
+genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+
+```
+
+import outliers file
+```{r}
+
+outliers = readLines(con="outliers_samples.txt")
+
+```
+
+
+
+select based on top 30 read mass genus and remove outliers
+
+```{r}
+
+
+genus %>%
+  #select(1:10) %>%
+  mutate_at(-1, ~./sum(.)) -> genus_prop
+
+top_genus_mass = 
+  genus_prop %>% 
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% 
+  as.matrix %>% 
+  apply(1,sum) %>% 
+  sort %>% rev %>% head(30)
+
+
+genus %>%
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus
+
+genus_prop %>%
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus_prop
+
+
+
+```
+
+
+
+compute JSD distance
+```{r}
+
+genus_jsd = 
+  genus_prop %>% t %>% as.data.frame %>%
+  Rfast::Dist(.,method="jensen_shannon")%>% 
+  magrittr::set_colnames(colnames(genus_prop)) %>%
+  as.dist %>% magrittr::divide_by(2) %>% sqrt()
+
+
+save(genus_jsd,file="genus_jsd_all.rda")
+
+```
+
+
+compute Bray-Curtis distance
+```{r}
+
+genus_bc = 
+genus_prop %>% t %>% as.data.frame %>%
+  vegan::vegdist()
+
+save(genus_bc,file="genus_bc_all.rda")
+
+```
+
+
+
+```{r}
+
+sample_select=sample(colnames(genus), 100, replace=FALSE)
+
+
+genus %>% 
+  select(sample_select) %>%
+  t %>% as.data.frame() %>% 
+  tibble::rownames_to_column("sample_id") %>%
+  select(sample_id, "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides","k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella") %>%
+  #head() %>%
+  dplyr::rename(Bacteroides=1, Prevotella=2) %>%
+  mutate(prev_bact_ratio = log2((Prevotella+1)/(Bacteroides+1)))
+
+
+
+
+plot(
+weighted_unifrac %>%
+  usedist::dist_subset(sample_select),
+
+
+genus_jsd %>%
+  usedist::dist_subset(sample_select))
+
+
+plot(
+genus_bc %>%
+  usedist::dist_subset(sample_select),
+
+
+genus_jsd %>%
+  usedist::dist_subset(sample_select))
+
+
+
+
+
+
+```
+
+
+
