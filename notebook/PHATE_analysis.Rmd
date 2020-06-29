@@ -1,0 +1,90 @@
+---
+title: "analysis using PHATE"
+output: html_notebook
+---
+
+
+
+```{r setup}
+
+library(dplyr)
+library(ggplot2)
+library(ade4)
+library(phateR)
+devtools::load_all(reset = FALSE)
+
+
+```
+
+
+
+load genus abundance
+```{r}
+
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+
+genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+
+```
+
+import outliers file
+```{r}
+
+outliers = readLines(con="outliers_samples.txt")
+
+```
+
+
+
+select based on top 30 read mass genus and remove outliers
+
+```{r}
+
+
+genus %>%
+  #select(1:10) %>%
+  mutate_at(-1, ~./sum(.)) -> genus_prop
+
+top_genus_mass = 
+  genus_prop %>% 
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% 
+  as.matrix %>% 
+  apply(1,sum) %>% 
+  sort %>% rev %>% head(30)
+
+
+genus %>%
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus
+
+genus_prop %>%
+  select(-outliers) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus_prop
+
+
+
+```
+
+
+```{r}
+
+genus_L1 = phateR::library.size.normalize(genus %>% t)
+
+genus_phate = phateR::phate(genus_L1)
+
+
+
+
+```
+
+
+```{r}
+
+
+ggplot(genus_phate) + geom_point(aes(x=PHATE1, y=PHATE2), size=1, alpha=0.5)
+
+
+```
+
