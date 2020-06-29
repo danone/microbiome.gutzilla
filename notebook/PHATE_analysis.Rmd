@@ -77,11 +77,12 @@ genus_prop %>%
 
 ```{r}
 
-genus_L1 = phateR::library.size.normalize(genus %>% t)
+#genus_L1 = phateR::library.size.normalize(genus %>% t)
 
 genus_phate = 
-  genus_L1 %>%
-  merge(enterotypes %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% 
+  genus_prop %>%
+  t() %>%
+  merge(enterotypes %>% filter(set != "outliers") %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% 
   tibble::column_to_rownames("Row.names") %>%
   phateR::phate(gamma=0)
 
@@ -94,7 +95,7 @@ genus_phate =
 ```{r}
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
-  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=Enterotypes_id%>%as.character), size=1, alpha=0.5) 
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=Enterotypes_id%>%as.character), size=1, alpha=0.5) #+ facet_wrap(~Enterotypes_id%>%as.character)
 
 
 
