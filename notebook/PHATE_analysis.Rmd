@@ -114,8 +114,8 @@ plot
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
   merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
-  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=genus_mada), size=1, alpha=0.5) +
-  scale_color_viridis_c() + facet_wrap(~genus_mada> 8)
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=log10(genus_mada)), size=1, alpha=0.5) +
+  scale_color_viridis_c() 
 
 ```
 
@@ -146,8 +146,9 @@ genus_phate$embedding %>%
   merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=prev_bact_ratio), size=1, alpha=0.5) +
-  scale_color_viridis_c() + facet_wrap(~genus_mada> 8)
+  scale_color_viridis_c() 
 
+ggsave("genus_phate_prevotella_ratio.pdf")
 
 ```
 
@@ -173,7 +174,7 @@ genus_phate$embedding %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=shannon), size=1, alpha=0.5) +
   scale_color_viridis_c() 
 
-
+ggsave("genus_phate_shannon.pdf")
 
 ```
 
