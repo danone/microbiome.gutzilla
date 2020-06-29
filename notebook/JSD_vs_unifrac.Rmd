@@ -121,8 +121,8 @@ merge(genus_bact_prev_ratio %>%
   select(sample_id.x,sample_id.y,prev_bact_delta)
 
 prev_bact_delta_dist =
-reshape2::dcast(prev_bact_delta_df,sample_id.x~sample_id.y, value.var=prev_bact_delta) %>% 
-  tibble::column_to_rownames(sample_id.x) %>%
+reshape2::dcast(prev_bact_delta_df,sample_id.x~sample_id.y, value.var="prev_bact_delta") %>% 
+  tibble::column_to_rownames("sample_id.x") %>%
   as.dist %>% usedist::dist_subset(sample_select)
 
 
@@ -137,17 +137,19 @@ genus_jsd %>%
   usedist::dist_subset(sample_select))
 
 
+
 plot(
-genus_bc %>%
+weighted_unifrac %>%
   usedist::dist_subset(sample_select),
 
+prev_bact_delta_dist)
 
-genus_jsd %>%
-  usedist::dist_subset(sample_select))
-
-
-
-
+data.frame(
+unifrac=weighted_unifrac %>% usedist::dist_subset(sample_select) %>% as.vector(),
+jsd= genus_jsd %>%   usedist::dist_subset(sample_select) %>% as.vector() ,
+ratio = prev_bact_delta_dist %>% usedist::dist_subset(sample_select) %>% as.vector()
+) %>%
+ggplot() + geom_point(aes(x=unifrac,y=jsd,col=ratio)) + scale_color_viridis_c() 
 
 
 ```
