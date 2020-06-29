@@ -95,20 +95,28 @@ save(genus_bc,file="genus_bc_all.rda")
 ```
 
 
-
+subsampling and compute prevotella/bacteroides ratio
 ```{r}
 
 sample_select=sample(colnames(genus), 100, replace=FALSE)
 
 
+genus_bact_prev_ratio =
 genus %>% 
   select(sample_select) %>%
   t %>% as.data.frame() %>% 
   tibble::rownames_to_column("sample_id") %>%
   select(sample_id, "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides","k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella") %>%
   #head() %>%
-  dplyr::rename(Bacteroides=1, Prevotella=2) %>%
-  mutate(prev_bact_ratio = log2((Prevotella+1)/(Bacteroides+1)))
+  dplyr::rename(Bacteroides=2, Prevotella=3) %>%
+  mutate(prev_bact_ratio = log2((Prevotella+1)/(Bacteroides+1))) %>%
+  select(sample_id,prev_bact_ratio)
+
+
+
+genus_bact_prev_ratio %>% 
+  
+  reshape2::melt()
 
 
 
