@@ -284,6 +284,7 @@ genus_phate$embedding %>%
   merge(genus_alr_ranked, by.x="Row.names", by.y="variable") %>%
   group_by(bin,taxa) %>%
   summarise(value=mean(value.y)) %>%
+  mutate(taxa = factor(taxa, levels=names(top_genus_mass))) %>%
   ggplot() + geom_tile(aes(x=bin,y=taxa,fill=(value))) + 
   scale_fill_viridis_c() +
   theme_classic()+
@@ -310,6 +311,8 @@ phate_richness_plot,
 
 genus_phate_plot, ncol=1, align = "v", rel_heights = c(5,1,5))
 
+
+ggsave(file="PHATE_combined_plot.pdf")
 
 ```
 
