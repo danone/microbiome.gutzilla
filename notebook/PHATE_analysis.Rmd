@@ -181,3 +181,18 @@ ggsave("genus_phate_shannon.pdf")
 TO DO: explore bacteroides and prevotella path
 
 
+```{r}
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
+  merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
+  merge(shannon, by.x="Row.names", by.y="row.names") %>%
+  filter(PHATE1>0) %>%
+  ggplot() + geom_density(aes(x=PHATE1, col=Enterotypes_id%>%as.character))
+
+
+```
+
+
+
