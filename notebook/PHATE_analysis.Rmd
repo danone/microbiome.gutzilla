@@ -188,11 +188,133 @@ genus_phate$embedding %>%
   merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   merge(shannon, by.x="Row.names", by.y="row.names") %>%
-  filter(PHATE1>0) %>%
+  #filter(PHATE1<0) %>%
+  mutate(PHATE1=PHATE1%>%rank()) %>%
   ggplot() + geom_density(aes(x=PHATE1, col=Enterotypes_id%>%as.character))
 
 
 ```
+
+
+
+
+```{r fig.height=5, fig.width=12}
+
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
+  merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
+  merge(shannon, by.x="Row.names", by.y="row.names") %>%
+  mutate(PHATE1=PHATE1%>%rank()) %>%
+  mutate(bin = cut(PHATE1, seq(min(PHATE1), max(PHATE1) + 150, 150), right = FALSE)) %>% 
+  group_by(bin) %>%
+  summarise(prev_bact_ratio=median(prev_bact_ratio), shannon=median(shannon)) -> phate_richness_bins
+
+
+genus_phate_enterotypes_plot=
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
+  merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
+  merge(shannon, by.x="Row.names", by.y="row.names") %>%
+  mutate(PHATE1=PHATE1%>%rank()) %>%
+  mutate(bin = cut(PHATE1, seq(min(PHATE1), max(PHATE1) + 150, 150), right = FALSE)) %>% 
+  #group_by(bin) %>%
+  ggplot() + geom_bar(aes(x=bin,fill=Enterotypes_id%>%as.character), position=position_fill(), width=1) + 
+  theme_classic()+
+  theme(axis.text.x = element_blank())
+  
+  genus_phate_enterotypes_plot
+  ggsave(genus_phate_enterotypes_plot, file="genus_phate_enterotypes_plot.pdf", h=5, w=12)
+
+
+```
+
+
+
+
+```{r fig.height=3, fig.width=10}
+
+phate_richness_plot=
+phate_richness_bins %>% 
+  reshape2::melt(id.vars=c("bin")) %>%
+  group_by(variable) %>%
+  mutate(value=scale(value)) %>%
+  ggplot() + geom_tile(aes(x=bin,y=variable, fill=value)) + 
+  scale_fill_viridis_c() +
+  theme_classic()+
+  theme(axis.text.x = element_blank())
+
+
+phate_richness_plot
+ggsave(phate_richness_plot,file="phate_richness_plot.pdf", h=2,w=10)
+
+
+
+```
+
+compare PHATE with genus
+```{r fig.height=5, fig.width=15}
+
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+
+genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+
+
+genus_alr_ranked=
+genus %>%
+  tibble::column_to_rownames("taxa") %>%
+  SpiecEasi::alr(divcomp=1,removeDivComp=FALSE) %>% as.data.frame() %>%
+  tibble::rownames_to_column("taxa") %>%
+  reshape2::melt() %>%
+  group_by(variable) %>%
+  mutate(value=rank(value)) 
+
+genus_alr_ranked =
+  genus_alr_ranked %>%
+  filter(taxa %in% names(top_genus_mass))
+
+genus_phate_plot=
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  mutate(PHATE1=PHATE1%>%rank()) %>%
+  mutate(bin = cut(PHATE1, seq(min(PHATE1), max(PHATE1) + 150, 150), right = FALSE)) %>% 
+  merge(genus_alr_ranked, by.x="Row.names", by.y="variable") %>%
+  group_by(bin,taxa) %>%
+  summarise(value=mean(value.y)) %>%
+  ggplot() + geom_tile(aes(x=bin,y=taxa,fill=(value))) + 
+  scale_fill_viridis_c() +
+  theme_classic()+
+  theme(axis.text.x = element_blank())
+
+
+
+ggsave(genus_phate_plot, file="genus_phate_plot.pdf", w=15,h=5)
+
+genus_phate_plot
+
+```
+
+
+combine plot
+
+
+```{r fig.height=10, fig.width=20}
+
+cowplot::plot_grid(
+genus_phate_enterotypes_plot,
+
+phate_richness_plot,
+
+genus_phate_plot, ncol=1, align = "v", rel_heights = c(5,1,5))
+
+
+```
+
+
+
 
 
 
