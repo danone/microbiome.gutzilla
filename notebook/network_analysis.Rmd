@@ -164,15 +164,35 @@ metadata %>%
                              
                              
                              )) %>%
-  group_by(variable,value) %>%
-  summarise(n=n())
+  reshape2::dcast(SAMPLE_NAME+COUNTRY_OF_BIRTH+AGE_YEARS+BMI~variable) -> metadata_cleaned
+
+
 
 
 
 ```
 
 ```{r}
-metadata$SUBSET_AGE %>% summary
+
+write.csv2(metadata_cleaned, file = "metadata_cleaned.csv2")
+
+metadata_cleaned =
+  read.csv2(file = "metadata_cleaned.csv2", row.names = 1) %>%
+  #select(-SAMPLE_NAME, -COUNTRY_OF_BIRTH) %>%
+  mutate(BMI = BMI %>% as.character %>% as.numeric(),
+         IBD =  IBD %>% as.character %>% as.numeric())
+
+library(ade4)
+
+metadata_cleaned %>%
+  select(-SAMPLE_NAME, -COUNTRY_OF_BIRTH) %>%
+  dudi.mix(nf=10,scannf=FALSE) -> metadata_pca
+
+metadata_pca$co %>%
+  tibble::rownames_to_column("variable") %>%
+  ggplot() + geom_text(aes(x=Comp1, y=Comp5, label=variable))
+
+
 
 ```
 
@@ -206,7 +226,30 @@ genus_prop %>%
 
 genus %>% t %>% as.data.frame %>% readr::write_tsv("agp_genus_top_30.tsv")
 
+
+
+
+
+
 ```
+
+
+merge genus and cleaned metadata
+
+```{r}
+
+metadata_cleaned %>%
+  merge(genus %>% t %>% as.data.frame, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  tibble::column_to_rownames("SAMPLE_NAME") %>%
+  select(contains("k__Bacteria")) %>% 
+   
+
+
+
+
+
+```
+
 
 
 
@@ -235,7 +278,8 @@ save_network("network_output.edgelist", netw_results)
 
 network=readr::read_tsv("network_output.edgelist", skip=2, comment = "#", col_names = FALSE)
 
-network
+network %>%
+  arrange(desc(abs(X3)))
 
 ```
 
