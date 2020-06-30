@@ -84,7 +84,7 @@ genus_phate =
   t() %>%
   merge(enterotypes %>% filter(set != "outliers") %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% 
   tibble::column_to_rownames("Row.names") %>%
-  phateR::phate(gamma=0)
+  phateR::phate(gamma=0,t=120)
 
 
 
@@ -178,6 +178,6 @@ ggsave("genus_phate_shannon.pdf")
 
 ```
 
-
+TO DO: explore bacteroides and prevotella path
 
 
