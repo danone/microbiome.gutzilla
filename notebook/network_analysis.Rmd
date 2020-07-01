@@ -13,9 +13,13 @@ library(dplyr)
 library(ggplot2)
 library(ade4)
 library(phateR)
+
+
+
+```
+
+```{r}
 devtools::load_all(reset = FALSE)
-
-
 ```
 
 
@@ -37,6 +41,12 @@ outliers = readLines(con="outliers_samples.txt")
 
 ```
 
+load enterotypes set from DMM analysis
+```{r}
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+```
 
 ```{r}
 
@@ -209,7 +219,7 @@ genus %>%
 
 top_genus_mass = 
   genus_prop %>% 
-  select(-outliers) %>%
+  select(-all_of(outliers)) %>%
   tibble::column_to_rownames("taxa") %>% 
   as.matrix %>% 
   apply(1,sum) %>% 
@@ -221,7 +231,7 @@ genus %>%
   tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus
 
 genus_prop %>%
-  select(-outliers) %>%
+  select(-all_of(outliers)) %>%
   tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus_prop
 
 genus %>% t %>% as.data.frame %>% readr::write_tsv("agp_genus_top_30.tsv")
@@ -241,18 +251,27 @@ merge genus and cleaned metadata
 metadata_cleaned %>%
   merge(genus %>% t %>% as.data.frame, by.x="SAMPLE_NAME", by.y="row.names") %>%
   tibble::column_to_rownames("SAMPLE_NAME") %>%
-  select(contains("k__Bacteria")) %>% 
+  select(contains("k__Bacteria")) %>% readr::write_tsv("genus_agp_netw.tsv")
    
 
 
-
+metadata_cleaned %>%
+  merge(genus %>% t %>% as.data.frame, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  tibble::column_to_rownames("SAMPLE_NAME") %>%
+  select(-COUNTRY_OF_BIRTH) %>%
+  merge(enterotypes %>% select(sample_name, Enterotypes_id) %>% mutate(Enterotypes_id = paste0("M",Enterotypes_id)), by.x="row.names", by.y="sample_name") %>%
+  tibble::column_to_rownames("Row.names") %>%
+  select(-contains("k__Bacteria")) %>% #readr::write_tsv("agp_netw_meta.tsv")
+  #mutate_if(is.integer,as.numeric)
+  mutate_if(is.integer,function(x){x+rnorm(1,mean=0,sd=0.00000001)}) %>% 
+  mutate(IBD=IBD+rnorm(1,mean=0,sd=0.00000001)) %>% readr::write_tsv("agp_netw_meta.tsv")
 
 
 ```
 
 
 
-
+without metadata
 
 ```{julia }
 
@@ -272,6 +291,28 @@ save_network("network_output.edgelist", netw_results)
 
 ```
 
+with metadata
+
+```{julia }
+
+using FlashWeave
+
+data_path = "genus_agp_netw.tsv"
+meta_data_path = "agp_netw_meta.tsv"
+#netw_results = learn_network(data_path, meta_data_path, sensitive=true, heterogeneous=false,  n_obs_min=5)
+
+netw_results = learn_network(data_path,meta_data_path, sensitive=true, heterogeneous=false, FDR=true)
+
+graph(netw_results)
+
+save_network("metadata_network_output.edgelist", netw_results)
+
+
+
+```
+
+
+
 
 
 ```{r}
@@ -280,6 +321,19 @@ network=readr::read_tsv("network_output.edgelist", skip=2, comment = "#", col_na
 
 network %>%
   arrange(desc(abs(X3)))
+
+```
+
+```{r}
+
+network=readr::read_tsv("metadata_network_output.edgelist", skip=2, comment = "#", col_names = FALSE)
+
+network %>%
+  arrange(desc(abs(X3))) %>%
+  filter(X1=="DIET_TYPE_Vegetarian"|X2=="DIET_TYPE_Vegetarian") %>%
+  
+  
+
 
 ```
 
