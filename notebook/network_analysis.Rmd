@@ -330,7 +330,7 @@ network=readr::read_tsv("metadata_network_output.edgelist", skip=2, comment = "#
 
 network %>%
   arrange(desc(abs(X3))) %>%
-  filter(X1=="DIET_TYPE_Vegetarian"|X2=="DIET_TYPE_Vegetarian") %>%
+  filter(X1=="DIET_TYPE_Vegetarian"|X2=="DIET_TYPE_Vegetarian")
   
   
 
