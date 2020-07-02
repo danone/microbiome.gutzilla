@@ -5,7 +5,7 @@ output: html_notebook
 
 
 
-```{r setup}
+```{r }
 
 library(dplyr)
 library(ggplot2)
@@ -55,7 +55,7 @@ genus %>%
 
 top_genus_mass = 
   genus_prop %>% 
-  select(-outliers) %>%
+  select(-all_of(outliers)) %>%
   tibble::column_to_rownames("taxa") %>% 
   as.matrix %>% 
   apply(1,sum) %>% 
@@ -63,11 +63,11 @@ top_genus_mass =
 
 
 genus %>%
-  select(-outliers) %>%
+  select(-all_of(outliers)) %>%
   tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus
 
 genus_prop %>%
-  select(-outliers) %>%
+  select(-all_of(outliers)) %>%
   tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus_prop
 
 
@@ -84,7 +84,7 @@ genus_phate =
   t() %>%
   merge(enterotypes %>% filter(set != "outliers") %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% 
   tibble::column_to_rownames("Row.names") %>%
-  phateR::phate(gamma=0,t=120)
+  phateR::phate(gamma=0,t=60)
 
 
 
@@ -95,10 +95,34 @@ genus_phate =
 ```{r}
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
-  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=Enterotypes_id%>%as.character), size=1, alpha=0.5) #+ facet_wrap(~Enterotypes_id%>%as.character)
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(PHATE1=mean(PHATE1), PHATE2=mean(PHATE2)) -> enterotypes_phate_centroid
 
-save(genus_phate, file="genus_phate.rda")
+enterotypes_phate_centroid %>%
+  arrange(PHATE1)
 
+enterotypes_phate_centroid %>%
+  arrange(PHATE2)
+
+```
+
+
+```{r}
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  filter(Enterotypes_id %in% c(18,14,16,17,7)) %>% dim
+  filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=Enterotypes_id%>%as.character), size=1, alpha=0.5) +
+  geom_text(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
+  
+  #+ facet_wrap(~Enterotypes_id%>%as.character)
+
+#save(genus_phate, file="genus_phate.rda")
+```
+
+
+```{r}
 ```
 compute mada intrasic complexity
 ```{r}
