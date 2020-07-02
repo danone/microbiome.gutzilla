@@ -82,9 +82,9 @@ genus_prop %>%
 genus_phate = 
   genus_prop %>%
   t() %>%
-  merge(enterotypes %>% filter(set != "outliers") %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% 
+  merge(enterotypes %>% filter(set != "outliers", value>0.80) %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% 
   tibble::column_to_rownames("Row.names") %>%
-  phateR::phate(gamma=0,t=60)
+  phateR::phate(gamma=0, t=60, seed=666)
 
 
 
@@ -111,10 +111,69 @@ enterotypes_phate_centroid %>%
 ```{r}
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
-  filter(Enterotypes_id %in% c(18,14,16,17,7)) %>% dim
-  filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(18,14,16,17,7), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(11,15,6,8,10,3,4,2), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(13), "Akkermansia DMM types",branch)) %>%
+  #filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=branch), size=1, alpha=0.5) +
+  scale_color_brewer("main taxa\nDMM types",type="qual") + theme_classic() +
+  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) #+
+  #facet_wrap(~branch)
+  
+  #+ facet_wrap(~Enterotypes_id%>%as.character)
+
+#save(genus_phate, file="genus_phate.rda")
+```
+
+```{r}
+
+
+genus_phate_clostridiales = 
+  genus_prop %>%
+  t() %>%
+  merge(enterotypes %>% filter(set != "outliers", value>0.80) %>% select(sample_name,Enterotypes_id), by.x="row.names", by.y="sample_name") %>% 
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(18,14,16,17,7), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(11,15,6,8,10,3,4,2), "Bacteroides DMM types",branch)) %>%
+  filter(branch == "Clostridiales DMM types" ) %>%
+  select(-Enterotypes_id, -branch) %>%
+  tibble::column_to_rownames("Row.names") %>%
+  phateR::phate(gamma=0, t=60, seed=666)
+
+
+
+
+
+```
+
+
+
+```{r}
+
+
+genus_phate_clostridiales$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(PHATE1=mean(PHATE1), PHATE2=mean(PHATE2)) -> enterotypes_phate_centroid
+
+enterotypes_phate_centroid %>%
+  arrange(PHATE1)
+
+enterotypes_phate_centroid %>%
+  arrange(PHATE2)
+
+genus_phate_clostridiales$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(18,14,16,17,7), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(11,15,6,8,10,3,4,2), "Bacteroides DMM types",branch)) %>%
+  #filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=Enterotypes_id%>%as.character), size=1, alpha=0.5) +
-  geom_text(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
+  scale_color_brewer("Clostridiales-Akkermansia\nDMM types",type="qual") + theme_classic() +
+  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) #+
+  #facet_wrap(~branch)
   
   #+ facet_wrap(~Enterotypes_id%>%as.character)
 
@@ -122,26 +181,7 @@ genus_phate$embedding %>%
 ```
 
 
-```{r}
-```
-compute mada intrasic complexity
-```{r}
 
-genus_mada = ider::mada(genus_phate$embedding, local = TRUE)
-quantile(genus_mada, 0.999)
-
-```
-
-plot
-```{r}
-
-genus_phate$embedding %>%
-  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
-  merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
-  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=log10(genus_mada)), size=1, alpha=0.5) +
-  scale_color_viridis_c() 
-
-```
 
 compute bacteroides prevotella ratio
 
@@ -167,7 +207,7 @@ genus %>%
 
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
-  merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
+  #merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=prev_bact_ratio), size=1, alpha=0.5) +
   scale_color_viridis_c() 
@@ -192,7 +232,7 @@ shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
 
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
-  merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
+  #merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   merge(shannon, by.x="Row.names", by.y="row.names") %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=shannon), size=1, alpha=0.5) +
@@ -202,14 +242,14 @@ ggsave("genus_phate_shannon.pdf")
 
 ```
 
-TO DO: explore bacteroides and prevotella path
+explore bacteroides and prevotella path
 
 
 ```{r}
 
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
-  merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
+  #merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   merge(shannon, by.x="Row.names", by.y="row.names") %>%
   #filter(PHATE1<0) %>%
@@ -227,7 +267,7 @@ genus_phate$embedding %>%
 
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
-  merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
+  #merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   merge(shannon, by.x="Row.names", by.y="row.names") %>%
   mutate(PHATE1=PHATE1%>%rank()) %>%
@@ -239,7 +279,7 @@ genus_phate$embedding %>%
 genus_phate_enterotypes_plot=
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
-  merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
+  #merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   merge(shannon, by.x="Row.names", by.y="row.names") %>%
   mutate(PHATE1=PHATE1%>%rank()) %>%
