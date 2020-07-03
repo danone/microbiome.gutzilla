@@ -8,7 +8,7 @@ output: html_notebook
 ```{r}
 library(dplyr)
 library(ggplot2)
-
+devtools::load_all(reset = FALSE)
 
 
 ```
@@ -267,12 +267,37 @@ metadata_cleaned %>%
   select(-value) %>%
   reshape2::melt(id.vars="Enterotypes_id") %>%
   group_by(Enterotypes_id, variable) %>%
-  summarise(value=median(value)) %>%
-  ggplot() + geom_point(aes(x=Enterotypes_id,y=value)) + facet_wrap(~variable, scale="free")
+  summarise( lower=quantile(value, 0.25), upper=quantile(value,0.75), value=median(value)) %>%
+  ggplot() + geom_point(aes(x=Enterotypes_id,y=value)) + facet_wrap(~variable, scale="free") + geom_errorbar(aes(x=Enterotypes_id,ymin = lower, ymax = upper), position = "dodge", width = 0.25)
 
 
 
+metadata_cleaned %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
+  mutate(Enterotypes_id = factor(Enterotypes_id, levels =c("11","15","6","8","10","3","4","2"))) %>%
+  select(Enterotypes_id, is.numeric) %>%
+  #select(-SAMPLE_NAME, -COUNTRY_OF_BIRTH, -set) %>%
+  select(-value) %>%
+  reshape2::melt(id.vars="Enterotypes_id") %>%
+  group_by(Enterotypes_id, variable) %>%
+  summarise( lower=quantile(value, 0.25), upper=quantile(value,0.75), value=median(value)) %>%
+  ggplot() + geom_point(aes(x=Enterotypes_id,y=value)) + facet_wrap(~variable, scale="free") + geom_errorbar(aes(x=Enterotypes_id,ymin = lower, ymax = upper), position = "dodge", width = 0.25)
 
+
+metadata_cleaned %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(Enterotypes_id %in% c(12,1,5,9)) %>%
+  mutate(Enterotypes_id = factor(Enterotypes_id, levels =c("12","1","5","9"))) %>%
+  select(Enterotypes_id, is.numeric) %>%
+  #select(-SAMPLE_NAME, -COUNTRY_OF_BIRTH, -set) %>%
+  select(-value) %>%
+  reshape2::melt(id.vars="Enterotypes_id") %>%
+  group_by(Enterotypes_id, variable) %>%
+  summarise( lower=quantile(value, 0.25), upper=quantile(value,0.75), value=median(value)) %>%
+  ggplot() + geom_point(aes(x=Enterotypes_id,y=value), col="red") + 
+  facet_wrap(~gsub("_","\n",variable), scale="free",nc=8) + 
+  geom_errorbar(aes(x=Enterotypes_id,ymin = lower, ymax = upper), position = "dodge", width = 0.25)
 
 ```
 
