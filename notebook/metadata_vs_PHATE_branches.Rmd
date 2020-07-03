@@ -1,0 +1,235 @@
+---
+title: "metadata analysis along branches"
+output: html_notebook
+---
+
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+
+
+```
+
+
+
+load enterotypes set from DMM analysis
+```{r}
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+```
+
+
+
+
+
+# metadata analysis along branches
+
+
+```{r}
+
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+
+
+variable_to_remove= c("HEIGHT_CM", 
+"WEIGHT_KG",
+"SAMPLE_TYPE",
+"BMI_CAT",
+"HOST_SUBJECT_ID",
+"ANONYMIZED_NAME",
+"ASSIGNED_FROM_GEO",
+"BIRTH_YEAR",
+"DESCRIPTION",
+"DNA_EXTRACTED",
+"HEIGHT_UNITS",
+"WEIGHT_UNITS",
+"SCIENTIFIC_NAME",
+"SURVEY_ID",
+"TAXON_ID",
+"WEIGHT_UNITS",
+"VIOSCREEN_STATUS","PUBLIC","TITLE")
+
+
+metadata$SUBSET_IBD %>% as.factor %>% summary
+
+metadata %>% 
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(!is.na(TYPES_OF_PLANTS)) %>%
+  filter(!is.na(ANTIBIOTIC_HISTORY)) %>%
+  filter(!is.na(COUNTRY_OF_BIRTH)) %>%
+  filter(!is.na(DIET_TYPE)) %>%
+  filter(!is.na(LACTOSE)) %>%
+  filter(!is.na(ALCOHOL_FREQUENCY)) %>%
+  filter(!is.na(IBD)) %>%
+  filter(!is.na(SEX)) %>%
+  filter(!is.na(BMI)) %>%
+  filter(!is.na(RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(WHOLE_GRAIN_FREQUENCY)) %>%
+  filter(!is.na(VEGETABLE_FREQUENCY)) %>%
+  filter(!is.na(MILK_CHEESE_FREQUENCY)) %>%
+  filter(!is.na(MEAT_EGGS_FREQUENCY)) %>%
+  filter(!is.na(PREPARED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(DRINKING_WATER_SOURCE)) %>%
+  filter(!is.na(EXERCISE_FREQUENCY)) %>%
+  filter(!is.na(FRUIT_FREQUENCY)) %>%
+  filter(!is.na(ONE_LITER_OF_WATER_A_DAY_FREQUENCY)) %>%
+  filter(!is.na(FERMENTED_PLANT_FREQUENCY)) %>%
+  filter(!is.na(SUGARY_SWEETS_FREQUENCY)) %>%
+  filter(!is.na(MILK_SUBSTITUTE_FREQUENCY)) %>%
+  filter(!is.na(SMOKING_FREQUENCY)) %>%
+  filter(!is.na(PROBIOTIC_FREQUENCY)) %>%
+  filter(!is.na(SEAFOOD_FREQUENCY)) %>%
+  filter(!is.na(HOMECOOKED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(HIGH_FAT_RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(SUGAR_SWEETENED_DRINK_FREQUENCY)) %>%
+  select(which(colMeans(is.na(.)) == 0)) %>%
+  #dim
+  summarise_all(funs(sum(is.na(.)))) %>%
+  reshape2::melt() %>%
+  arrange((value))
+
+
+
+metadata %>% 
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(!is.na(TYPES_OF_PLANTS)) %>%
+  filter(!is.na(ANTIBIOTIC_HISTORY)) %>%
+  filter(!is.na(COUNTRY_OF_BIRTH)) %>%
+  filter(!is.na(DIET_TYPE)) %>%
+  filter(!is.na(LACTOSE)) %>%
+  filter(!is.na(ALCOHOL_FREQUENCY)) %>%
+  filter(!is.na(IBD)) %>%
+  filter(!is.na(SEX)) %>%
+  filter(!is.na(BMI)) %>%
+  filter(!is.na(RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(WHOLE_GRAIN_FREQUENCY)) %>%
+  filter(!is.na(VEGETABLE_FREQUENCY)) %>%
+  filter(!is.na(MILK_CHEESE_FREQUENCY)) %>%
+  filter(!is.na(MEAT_EGGS_FREQUENCY)) %>%
+  filter(!is.na(PREPARED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(DRINKING_WATER_SOURCE)) %>%
+  filter(!is.na(EXERCISE_FREQUENCY)) %>%
+  filter(!is.na(FRUIT_FREQUENCY)) %>%
+  filter(!is.na(ONE_LITER_OF_WATER_A_DAY_FREQUENCY)) %>%
+  filter(!is.na(FERMENTED_PLANT_FREQUENCY)) %>%
+  filter(!is.na(SUGARY_SWEETS_FREQUENCY)) %>%
+  filter(!is.na(MILK_SUBSTITUTE_FREQUENCY)) %>%
+  filter(!is.na(SMOKING_FREQUENCY)) %>%
+  filter(!is.na(PROBIOTIC_FREQUENCY)) %>%
+  filter(!is.na(SEAFOOD_FREQUENCY)) %>%
+  filter(!is.na(HOMECOOKED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(HIGH_FAT_RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(SUGAR_SWEETENED_DRINK_FREQUENCY)) %>%
+  select(which(colMeans(is.na(.)) == 0)) %>% 
+  select(    -contains("SUBSET"),-contains("BODY"),
+    -contains("ENV_"),-contains("HOST"),
+    -contains("PHYSICAL_SPECIMEN_"), -c(all_of(variable_to_remove))) %>% 
+  mutate_all(function(x){ifelse(x=="Yes","true",ifelse(x=="No","false",x))}) %>%
+  mutate_all(function(x){ifelse(x=="true",1,ifelse(x=="false",0,x))}) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","COUNTRY_OF_BIRTH","AGE_YEARS","BMI")) %>%
+  mutate(value = value %>% recode(
+                            `Daily` = "30",
+                            `Never` = "0",
+                            `Never` = "0",
+                            `Occasionally (1-2 times/week)` = "6",
+                            `Rarely (a few times/month)` = "2",
+                            `Rarely (less than once/week)` = "2",
+                            `Regularly (3-5 times/week)` = "16",
+                            `Less than 5` = "0",
+                            `6 to 10` = "6",
+                            `11 to 20` = "11",
+                            `21 to 30` = "21",
+                            `More than 30` = "30",
+                            `6 months` = "182",
+                            `I have not taken antibiotics in the past year.` = "548",
+                            `Month` = "30",
+                            `Week` = "7",
+                            `Year` = "365",
+                            `Diagnosed by a medical professional (doctor, physician assistant)` = "1",
+                            `I do not have this condition` = "0",
+                            `Diagnosed by an alternative medicine practitioner` = "0.5",
+                            `Self-diagnosed` = "0.5"
+                             
+                             
+                             )) %>%
+  reshape2::dcast(SAMPLE_NAME+COUNTRY_OF_BIRTH+AGE_YEARS+BMI~variable) %>%
+  mutate_at(vars(matches("FREQUENCY"),"ANTIBIOTIC_HISTORY","AGE_YEARS","BMI","TYPES_OF_PLANTS"), as.numeric) -> metadata_cleaned
+
+```
+
+
+```{r}
+
+#metadata_cleaned %>% head %>% .[5:50]
+
+
+#metadata_cleaned %>%
+#  mutate_at(vars(matches("FREQUENCY"),"ANTIBIOTIC_HISTORY","AGE_YEARS","BMI","TYPES_OF_PLANTS"), as.numeric)
+
+
+
+test=NULL
+
+for(i in metadata_cleaned[3:50] %>% select(is.character) %>% colnames){
+print(i)
+  metadata_cleaned %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(Enterotypes_id %in% c("7","17","16","14","18")) %>%
+  #filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
+  #  filter(Enterotypes_id %in% c(12,1,5,9)) %>%
+  .[,c("Enterotypes_id",i)] %>% as.data.frame %>% table %>% chisq.test() %>% broom::tidy() -> test_tmp
+  
+  test_tmp=data.frame(variable=i,test_tmp)
+  
+  test=rbind(test,test_tmp)
+  
+}
+
+test %>% arrange(p.value) %>% select(p.value,variable) %>% mutate(fdr=p.adjust(p.value,method="fdr"))
+
+
+
+test=NULL
+
+for(i in metadata_cleaned[3:50] %>% select(is.numeric) %>% colnames){
+print(i)
+  metadata_cleaned %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(Enterotypes_id %in% c("7","17","16","14","18")) %>%
+    #filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
+   # filter(Enterotypes_id %in% c(12,1,5,9)) %>%
+  
+  .[,c("Enterotypes_id",i)] %>% as.data.frame %>% kruskal.test(x=.[,2],g=as.character(.[,1])) %>% broom::tidy() -> test_tmp
+  
+  test_tmp=data.frame(variable=i,test_tmp)
+  
+  test=rbind(test,test_tmp)
+  
+}
+
+test %>% arrange(p.value) %>% select(p.value,variable) %>% mutate(fdr=p.adjust(p.value,method="fdr"))
+
+
+
+```
+
+
+## viz
+```{r fig.height=10, fig.width=10}
+
+metadata_cleaned %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(Enterotypes_id %in% c("7","17","16","14","18")) %>%
+  mutate(Enterotypes_id = factor(Enterotypes_id, levels =c("7","17","16","14","18"))) %>%
+  select(Enterotypes_id, is.character) %>%
+  select(-SAMPLE_NAME, -COUNTRY_OF_BIRTH, -set) %>%
+  reshape2::melt(id.vars="Enterotypes_id") %>%
+  ggplot() + geom_bar(aes(x=Enterotypes_id,fill=value), position="fill") + facet_wrap(~variable)
+           
+
+
+```
+
