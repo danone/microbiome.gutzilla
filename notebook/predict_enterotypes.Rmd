@@ -4,7 +4,7 @@ output: html_notebook
 ---
 
 
-```{r}
+```{r setup}
 library(tidyselect)
 library(DirichletMultinomial)
 devtools::load_all()
