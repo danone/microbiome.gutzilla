@@ -1,0 +1,95 @@
+---
+title: "network data viz"
+output: html_notebook
+---
+
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+
+
+```
+
+```{r}
+
+
+network=readr::read_tsv("metadata_network_output.edgelist2_fdr.txt", skip=2, comment = "#", col_names = FALSE)
+
+network %>%
+  mutate(X1 = strsplit(X1,split="f__")[[1]][2], X2 = strsplit(X2,split="f__")[[1]][2])
+
+
+network %>%
+  arrange(desc(abs(X3))) %>%
+  filter(X1=="DIET_TYPE_Vegetarian"|X2=="DIET_TYPE_Vegetarian")
+  
+
+
+```
+
+```{r fig.height=15, fig.width=30}
+
+network %>%
+  mutate(X1=ifelse(X1=="k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__;g__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__;g__Clostridiales",X1) ) %>%
+  mutate(X2=ifelse(X2=="k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__;g__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__;g__Clostridiales",X2) ) %>%
+    mutate(X1=ifelse(X1=="k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__Ruminococcaceae",X1) ) %>%
+    mutate(X2=ifelse(X2=="k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__Ruminococcaceae",X2) ) %>%
+    mutate(X1=ifelse(X1=="k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Lachnospiraceae;__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Lachnospiraceae;g__Lachnospiraceae",X1) ) %>%
+    mutate(X2=ifelse(X2=="k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Lachnospiraceae;__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Lachnospiraceae;g__Lachnospiraceae",X2) ) %>%
+    mutate(X1=ifelse(X1=="k__Bacteria;p__Tenericutes;c__Mollicutes;o__RF39;f__;g__","k__Bacteria;p__Tenericutes;c__Mollicutes;o__RF39;f__;g__RF39",X1) ) %>%
+    mutate(X2=ifelse(X2=="k__Bacteria;p__Tenericutes;c__Mollicutes;o__RF39;f__;g__","k__Bacteria;p__Tenericutes;c__Mollicutes;o__RF39;f__;g__RF39",X2) ) %>%
+    mutate(X1=ifelse(X1=="k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;__;__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;__;g__Clostridiales2",X1) ) %>%
+    mutate(X2=ifelse(X2=="k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;__;__","k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;__;g__Clostridiales2",X2) ) %>%
+  tidyr::separate(X1,sep="g__", into=c("X1a","X1b"), remove=FALSE) %>%
+  tidyr::separate(X2,sep="g__", into=c("X2a","X2b"), remove=FALSE) %>%
+  mutate(X1 = ifelse(stringr::str_detect(X1, ";g__"),paste0("Bacteria",X1b),X1)) %>%
+  mutate(X2 = ifelse(stringr::str_detect(X2, ";g__"),paste0("Bacteria",X2b),X2)) %>%
+  select(X1,X2,X3) %>%
+  graph_from_data_frame() -> graph
+
+
+
+graph %>% 
+  as_tbl_graph() %>%
+  activate(nodes) %>%
+  mutate(type=ifelse(grepl("Bacteria",name),"Microbiota",ifelse(grepl("ALCOHOL|WATER|PLANTS|PROBIOTIC|FREQUENCY|DIET",name),"Diet/Lifestyle","Physio/Health"))) %>%
+  mutate(name = gsub("Bacteria","",name)) %>%
+  mutate(centrality = centrality_degree()) %>%
+  #filter((type== "Diet/Lifestyle"& centrality > 5) | (type== "Physio/Health" & centrality > 5) | (type== "Microbiota" & centrality > 10)   ) %>%
+  #filter(centrality > 3) %>%
+  #mutate(centrality = -centrality) %>%
+  mutate(type = as.factor(type)) %>%
+  activate(edges) %>%
+  mutate(sens=ifelse(X3>0,"pos","neg")) %>% filter(abs(X3) > 0.00) -> graph
+  
+
+
+
+ggraph(graph, layout='hive', axis=type, sort.by = centrality) + 
+  #geom_edge_link(aes(colour = sens)) + 
+  geom_node_text(aes(label = name), size=5, col="white") +
+  geom_edge_hive(aes(colour = factor(sens), alpha = abs(X3)), size=5  ) + 
+  geom_axis_hive( size = 1, label = TRUE) +
+  scale_edge_color_manual(values=c("red","green")) +
+  facet_wrap(~sens) + theme_dark()
+  
+
+
+```
+
+```{r}
+
+
+
+
+ggraph(graph) + 
+    geom_edge_link(aes(col=X3>0)) + 
+    geom_node_point() + scale_edge_color_manual(values=c("green","red"))
+
+```
+
