@@ -79,7 +79,9 @@ genus_count %>%
 
 ```{r}
 
-alpha <- phyloseq::estimate_richness(curatedMetaG_phyloseq, measures = "Shannon")
+#alpha_shannon_curated <- phyloseq::estimate_richness(curatedMetaG_phyloseq, measures = "Shannon")
+
+alpha_shannon_curated <-vegan::diversity(genus_count[,-c(1:6)], MARGIN = 2)
 
 ```
 
@@ -97,15 +99,15 @@ sample_to_select = names(which(apply(genus_count_dominant,2,sum) / genus_count %
   select(-Kingdom,-Phylum,-Class,-Order,-Family,-Genus) %>%
   apply(2,sum)  > 0.3))
 
+#genus_count_dominant=genus_count_dominant[,1:100]
 
+genus_count_dominant = genus_count_dominant[,sample_to_select]
 ```
 
 
 ```{r}
 
-#genus_count_dominant=genus_count_dominant[,1:100]
 
-genus_count_dominant = genus_count_dominant[,sample_to_select]
 
 source("enterotyping_curatedmetaG.R")
 save(fit_genus_list_curated, file="fit_genus_list_curated.rda")
@@ -129,7 +131,7 @@ heatmapdmn(t(genus_count_dominant),fit_genus_list_curated[[1]][[1]],fit_genus_li
 ###################################################
 p0 <- fitted(fit_genus_list_curated[[1]][[1]], scale=TRUE)     # scale by theta
 pbest <- fitted(fit_genus_list_curated[[1]][[best_genus_lplc]], scale=TRUE)
-colnames(pbest) <- paste("m", 1:best_genus_lplc, sep="")
+colnames(pbest) <- paste("M", 1:best_genus_lplc, sep="")
 (meandiff <- colSums(abs(pbest - as.vector(p0))))
 sum(meandiff)
 
@@ -140,12 +142,12 @@ sum(meandiff)
 diff <- rowSums(abs(pbest - as.vector(p0)))
 o <- order(diff, decreasing=TRUE)
 cdiff <- cumsum(diff[o]) / sum(diff)
-df <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 30)
-df %>% as.data.frame()
+df_curated <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 30)
+df_curated %>% as.data.frame()
 
-df_curated = df %>% as.data.frame()
+#df_curated = df %>% as.data.frame()
 
-df %>% as.data.frame() %>%
+df_curated %>% as.data.frame() %>%
   tibble::rownames_to_column("taxa") %>%
   reshape2::melt(id.vars="taxa") %>%
   filter(!variable %in% c("Mean","diff","cdiff")) %>%
@@ -247,21 +249,30 @@ curatedMetaG_metadata %>%
 
 
 
-```{r fig.height=6, fig.width=10}
+```{r fig.height=10, fig.width=10}
 
 merge(df_curated,df_gutzilla, by="row.names") %>% 
-  select(contains("m",ignore.case = FALSE)) %>% 
+  select(contains("m",ignore.case = TRUE)) %>% 
+  select(-Mean.x,-Mean.y) %>%
   mutate(Row.names = Row.names %>% str_split_fixed(pattern =";",  n = 6) %>% .[,6]) %>%
   tibble::column_to_rownames("Row.names") %>% 
   as.matrix %>% 
   heatmap(scale = "column")
 
 merge(df_curated,df_gutzilla, by="row.names") %>% 
-  select(contains("m",ignore.case = FALSE)) %>% 
+  select(contains("m",ignore.case = TRUE)) %>% 
+  select(-Mean.x,-Mean.y) %>%
   mutate(Row.names = Row.names %>% str_split_fixed(pattern =";",  n = 6) %>% .[,6]) %>%
   tibble::column_to_rownames("Row.names") %>% 
   as.matrix %>% 
   heatmap(scale = "row")
+
+
+
+```
+
+```{r}
+
 
 
 ```
@@ -271,12 +282,77 @@ merge(df_curated,df_gutzilla, by="row.names") %>%
 
 enterotypes_curated
 
+enterotypes_alpha_div %>% head
+
 alpha_shannon_curated %>% 
   merge(enterotypes_curated, by="row.names") %>%
-  ggplot() + geom_boxplot(aes(x=Enterotypes_id%>%as.character,y=Shannon))
+  ggplot() + geom_boxplot(aes(x=Enterotypes_id%>%as.character,y=x))
+
+
+bind_rows(alpha_shannon_curated %>% 
+  merge(enterotypes_curated, by="row.names") %>%
+  mutate(Enterotypes_id=paste0("M",Enterotypes_id)) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(Shannon=median(x)) %>%
+  ungroup() %>%
+  mutate(rank=rank(Shannon), scale=scale(Shannon)),
+
+
+enterotypes_alpha_div %>%
+  mutate(Enterotypes_id=paste0("m",Enterotypes_id)) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(Shannon=median(shannon)) %>%
+  ungroup() %>%
+  mutate(rank=rank(Shannon), scale=scale(Shannon))) -> microbiota_types_alpha_diversity
+
+
+```
+
+
+
+```{r fig.height=5, fig.width=10}
+
+merge(df_curated,df_gutzilla, by="row.names") %>% 
+  select(contains("m",ignore.case = TRUE)) %>% 
+  select(-Mean.x,-Mean.y, -Row.names) %>% 
+  colnames() %>%
+  tibble::tibble(Microbiota=.) %>%
+  mutate(dataset=ifelse(Microbiota %>% grepl("M", .), "CuratedMGdb","AGP")) %>%
+  #mutate(random=rnorm(18+19)) %>%
+  merge(microbiota_types_alpha_diversity, by.x="Microbiota", by.y="Enterotypes_id") %>%
+  select(-rank, -Shannon) %>%
+  dplyr::rename(`Shannon scaled`="scale") %>%
+  merge(diet_coa, by.x="Microbiota", by.y ="row.names", all = TRUE ) %>%
+  #select(-Axis2) %>%
+  dplyr::rename
+  tibble::column_to_rownames("Microbiota") -> microbiota_annotation
+
+
+merge(df_curated,df_gutzilla, by="row.names") %>% 
+  select(contains("m",ignore.case = TRUE)) %>% 
+  select(-Mean.x,-Mean.y) %>%
+  mutate(Row.names = Row.names %>% str_split_fixed(pattern =";",  n = 6) %>% .[,6] %>% gsub("g__","",.)) %>%
+  tibble::column_to_rownames("Row.names") %>% as.matrix() -> microbiota_types
+
+microbiota_types_jsd = Rfast::Dist(t(microbiota_types)) 
+colnames(microbiota_types_jsd) = row.names(microbiota_types_jsd) = colnames(microbiota_types)
+
+microbiota_types_jsd = microbiota_types_jsd %>% as.dist() %>% sqrt()
+
+ann_colors = list(
+    dataset = c(AGP="pink", CuratedMGdb="lightblue"),
+    `Shannon scaled` = RColorBrewer::brewer.pal(4, name="OrRd"),
+    Axis1 = RColorBrewer::brewer.pal(4, name="BrBG"),
+    Axis2 = RColorBrewer::brewer.pal(4, name="BrBG")
+)
+
+
+  #as.matrix %>% #log10() %>%
+  pheatmap::pheatmap(mat=microbiota_types, cutree_cols = 6, annotation_col = microbiota_annotation, cellwidth = 10, cellheight = 20, clustering_distance_cols = microbiota_types_jsd, annotation_colors = ann_colors)
 
 
 
 ```
+
 
 
