@@ -137,6 +137,14 @@ genus_jsd %>%
   usedist::dist_subset(sample_select))
 
 
+plot(
+genus_bc %>%
+  usedist::dist_subset(sample_select),
+
+
+genus_jsd %>%
+  usedist::dist_subset(sample_select))
+
 
 plot(
 weighted_unifrac %>%
