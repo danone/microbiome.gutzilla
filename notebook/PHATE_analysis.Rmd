@@ -252,9 +252,15 @@ genus_phate$embedding %>%
   #merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   merge(shannon, by.x="Row.names", by.y="row.names") %>%
+   mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(18,14,16,17,7), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(11,15,6,8,10,3,4,2), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(13), "Akkermansia DMM types",branch)) %>%
   #filter(PHATE1<0) %>%
   mutate(PHATE1=PHATE1%>%rank()) %>%
-  ggplot() + geom_density(aes(x=PHATE1, col=Enterotypes_id%>%as.character))
+  #filter(branch=="Prevotella DMM types") %>%
+  ggplot() + geom_density(aes(x=PHATE1, col=Enterotypes_id%>%as.character))# + 
+  #facet_wrap(~branch, scale="free") + scale_fill_brewer(type="qual", palette = 2)
 
 
 ```
@@ -379,7 +385,6 @@ genus_phate_plot, ncol=1, align = "v", rel_heights = c(5,1,5))
 ggsave(file="PHATE_combined_plot.pdf")
 
 ```
-
 
 
 
