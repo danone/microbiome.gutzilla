@@ -59,14 +59,14 @@ taxo_alr_ranked %>%
   readr::write_csv2(path=file_out_alr_ranked_melted_top10)
 
 
-#### plot #####
+#### examples plots #####
 
 
 taxo_alr_ranked %>%
   filter(`#OTU ID` %in% top_taxa) %>%
   mutate(`#OTU ID` = `#OTU ID` %>% strsplit(split=";") %>% sapply(function(x)x[6] %>% gsub("g__","",.))) %>% #.[1:10] %>% head
   reshape2::melt(id.vars="#OTU ID") %>%
-  ggplot() + geom_histogram(aes(x=value, fill=value<=100)) + facet_wrap(~`#OTU ID`, nr=2) +
+  ggplot() + geom_histogram(aes(x=value, fill=value<100)) + facet_wrap(~`#OTU ID`, nr=2) +
   scale_y_log10() + xlab("rank") + ylab("# participants") +
   scale_fill_brewer("genus\ndetected",type="qual") +
   theme_dark()
@@ -76,24 +76,24 @@ taxo_alr_ranked %>%
   filter(`#OTU ID` %in% top_taxa) %>%
   mutate(`#OTU ID` = `#OTU ID` %>% strsplit(split=";") %>% sapply(function(x)x[6] %>% gsub("g__","",.))) %>% #.[1:10] %>% head
   reshape2::melt(id.vars="#OTU ID") %>%
-  ggplot(aes(x = value, y = `#OTU ID`, fill=value<=100)) +
+  ggplot(aes(x = value, y = `#OTU ID`, fill=value<100)) +
   geom_density_ridges(stat = "binline", bins = 30, scale = 0.95, draw_baseline = FALSE) +
   xlab("rank") + ylab("# participants") + #scale_y_log10() +
   scale_fill_brewer("genus\ndetected",type="qual") +
   theme_dark()
 
-
-taxo_alr_ranked %>%
-  filter(`#OTU ID` %in% top_taxa) %>%
-  mutate(`#OTU ID` = `#OTU ID` %>% strsplit(split=";") %>% sapply(function(x)x[6] %>% gsub("g__","",.))) %>% #.[1:10] %>% head
-  reshape2::melt(id.vars="#OTU ID") %>%
-  filter(value<100) %>%
-  ggplot(aes(x = value, y = `#OTU ID`)) +
-  geom_density_ridges(draw_baseline = FALSE) +
-  xlab("rank") + ylab("# participants") + #scale_y_log10() +
-  scale_fill_brewer("genus\ndetected",type="qual") +
-  theme_dark() + scale_x_log10()
-
+#
+# taxo_alr_ranked %>%
+#   filter(`#OTU ID` %in% top_taxa) %>%
+#   mutate(`#OTU ID` = `#OTU ID` %>% strsplit(split=";") %>% sapply(function(x)x[6] %>% gsub("g__","",.))) %>% #.[1:10] %>% head
+#   reshape2::melt(id.vars="#OTU ID") %>%
+#   filter(value<100) %>%
+#   ggplot(aes(x = value, y = `#OTU ID`)) +
+#   geom_density_ridges(draw_baseline = FALSE) +
+#   xlab("rank") + ylab("# participants") + #scale_y_log10() +
+#   scale_fill_brewer("genus\ndetected",type="qual") +
+#   theme_dark() + scale_x_log10()
+#
 
 
 
@@ -104,6 +104,7 @@ taxo_alr_ranked %>%
   filter(`#OTU ID` %in% top_taxa) %>%
   mutate(`#OTU ID` = `#OTU ID` %>% strsplit(split=";") %>% sapply(function(x)x[6] %>% gsub("g__","",.))) %>% #.[1:10] %>% head
   reshape2::melt(id.vars="#OTU ID") %>%
+  mutate(`#OTU ID` = `#OTU ID` %>% as.factor %>% forcats::fct_reorder(., value, .fun = median, .desc = TRUE)) %>%
   filter(value<100) %>%
   ggplot(aes(x = value, y = `#OTU ID`, fill = factor(stat(quantile)))) +
   stat_density_ridges(
@@ -111,7 +112,9 @@ taxo_alr_ranked %>%
   quantiles = 4, quantile_lines = TRUE
 ) +
   scale_fill_viridis_d(name = "Quartiles") +
-  theme_dark() + scale_x_log10("rank") +
+  theme_dark() + #scale_x_log10("participant gut microbiome rank") +
+  xlab("participant gut microbiome rank") +
+  scale_x_continuous(breaks = c(1, 50, 100), limits=c(1,100)) +
   ylab("microbial genus") +
   theme(
     legend.position = "top"
@@ -124,12 +127,14 @@ taxo_alr_ranked %>%
   filter(`#OTU ID` %in% top_taxa) %>%
   mutate(`#OTU ID` = `#OTU ID` %>% strsplit(split=";") %>% sapply(function(x)x[6] %>% gsub("g__","",.))) %>% #.[1:10] %>% head
   reshape2::melt(id.vars="#OTU ID") %>%
+  mutate(`#OTU ID` = `#OTU ID` %>% as.factor %>% forcats::fct_reorder(., value, .fun = median, .desc = TRUE)) %>%
   mutate(value=ifelse(value>=100,"undetected","detected")) %>%
   mutate(value = forcats::fct_relevel(value,"detected", after=Inf)) %>%
   ggplot() + geom_bar(aes(`#OTU ID`,fill=value), position="stack") +
+  scale_fill_brewer("", type="qual", palette = 3) +
   coord_flip() +
   theme_dark() +
-  ylab("# participants") +
+  ylab("number of participants") +
   xlab("") +
   theme(axis.title.y=element_blank(),
         axis.text.y=element_blank(),
