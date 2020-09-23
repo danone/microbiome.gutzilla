@@ -1,0 +1,122 @@
+---
+title: "PHATE analysis CuratedMetaGData"
+output: html_notebook
+---
+
+
+
+
+```{r}
+
+library(phyloseq)
+devtools::load_all()
+library(magrittr)
+library(forcats)
+library(ggplot2)
+
+```
+
+
+
+```{r}
+
+load(system.file("data-raw/curatedMetaG/curatedMetaGData.rda", package = "agp"))
+
+
+```
+
+
+
+```{r}
+load("curatedMetaG_data.rda")
+load("top_genus_mass.rda")
+```
+
+
+```{r}
+curatedMetaG_data %>% #head(50) %>%
+  mutate(Genus=fct_explicit_na(Genus, na_level = ""),
+         Family=fct_explicit_na(Family, na_level = "")) %>%
+  group_by(Kingdom,Phylum,Class,Order,Family,Genus) %>%
+  select(-Row.names,-Species) %>%
+  #summarise_all(sum) %>%
+  reshape2::melt(id.vars=c("Kingdom","Phylum","Class","Order","Family","Genus")) %>%
+  mutate(value=round(value*1000,0)) %>%
+  group_by(Kingdom,Phylum,Class,Order,Family,Genus,variable) %>%
+  summarise(value=sum(value)) %>%
+  reshape2::dcast(Kingdom+Phylum+Class+Order+Family+Genus~variable) -> genus_count
+
+curatedMetaG_data %>%
+  mutate(taxa=paste0("k__",Kingdom,";p__",Phylum,";c__",Class,";o__",Order,";f__",Family,";g__",Genus)) %>%
+  filter(Class=="Mollicutes") %>% pull(taxa)
+
+genus_count %>% 
+  mutate(taxa=paste0("k__",Kingdom,";p__",Phylum,";c__",Class,";o__",Order,";f__",Family,";g__",Genus)) %>% 
+  #filter(taxa ==  "k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__;g__")
+  #select(taxa) %>%
+  filter(taxa %in% names(top_genus_mass)|
+           Genus=="Dialister"|
+           Genus=="Phascolarctobacterium"|
+           taxa == "k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Clostridiales_noname;g__Clostridiales_noname"|
+           taxa == "k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__Ruminococcaceae_noname"|
+           taxa == "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Rikenellaceae;g__Rikenellaceae_noname"|
+           taxa == "k__Bacteria;p__Firmicutes;c__Erysipelotrichia;o__Erysipelotrichales;f__Erysipelotrichaceae;g__Erysipelotrichaceae_noname"|
+           taxa == "k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Lachnospiraceae;g__Lachnospiraceae_noname") %>%
+  select(-Kingdom,-Phylum,-Class,-Order,-Family,-Genus) %>%
+  tibble::column_to_rownames("taxa") -> genus_count_dominant
+```
+
+
+
+```{r}
+
+sample_to_select = names(which(apply(genus_count_dominant,2,sum) / genus_count %>%
+  select(-Kingdom,-Phylum,-Class,-Order,-Family,-Genus) %>%
+  apply(2,sum)  > 0.3))
+
+#genus_count_dominant=genus_count_dominant[,1:100]
+
+genus_count_dominant = genus_count_dominant[,sample_to_select]
+```
+
+
+
+```{r}
+
+genus_count_dominant %>%
+  tibble::rownames_to_column("Row.names") %>%
+  #select(1:10) %>%
+  mutate_at(-1, ~./sum(.)) -> genus_prop
+
+#genus_L1 = phateR::library.size.normalize(genus %>% t)
+
+genus_phate = 
+  genus_prop %>%
+  tibble::column_to_rownames("Row.names") %>%
+  t() %>%
+  #as.data.frame() %>%
+  #merge(enterotypes %>% filter(set != "outliers", value>0.80) %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% head
+  
+  phateR::phate(gamma=0, t=60, seed=666)
+
+
+
+
+```
+
+
+
+
+```{r}
+
+GMHI = read.csv(file = "GMHI_output.csv", row.names = 1)
+
+genus_phate$embedding %>%
+  as.data.frame() %>%
+  merge(.,GMHI, by="row.names") %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=GMHI)) + scale_color_viridis_c("Gut Microbiota\nHealthy Index")
+
+
+```
+
+
