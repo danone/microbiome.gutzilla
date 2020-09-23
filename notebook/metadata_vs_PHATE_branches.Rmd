@@ -281,7 +281,7 @@ metadata_cleaned %>%
   mutate(BMI = cut(BMI, 5, labels=FALSE), AGE_YEARS = cut(AGE_YEARS,5,labels=FALSE)) %>%
   mutate_if(is.numeric, function(x) as.numeric(as.factor(x))  ) %>%
   reshape2::melt(id.vars="Enterotypes_id") %>%
-  ggplot() + geom_bar(aes(x=Enterotypes_id, fill=value%>%as.character), position="fill") + facet_wrap(~variable, scale="free") + scale_fill_brewer()
+  ggplot() + geom_bar(aes(x=Enterotypes_id, fill=value%>%as.character), position="fill") + facet_wrap(~variable) + scale_fill_brewer()
 
 
 
@@ -309,7 +309,7 @@ filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
   mutate(BMI = cut(BMI, 5, labels=FALSE), AGE_YEARS = cut(AGE_YEARS,5,labels=FALSE)) %>%
   mutate_if(is.numeric, function(x) as.numeric(as.factor(x))  ) %>%
   reshape2::melt(id.vars="Enterotypes_id") %>%
-  ggplot() + geom_bar(aes(x=Enterotypes_id, fill=value%>%as.character), position="fill") + facet_wrap(~variable, scale="free") + scale_fill_brewer()
+  ggplot() + geom_bar(aes(x=Enterotypes_id, fill=value%>%as.character), position="fill") + facet_wrap(~variable) + scale_fill_brewer()
 
 
 metadata_cleaned %>%
@@ -337,7 +337,7 @@ filter(Enterotypes_id %in% c(12,1,5,9)) %>%
   mutate(BMI = cut(BMI, 5, labels=FALSE), AGE_YEARS = cut(AGE_YEARS,5,labels=FALSE)) %>%
   mutate_if(is.numeric, function(x) as.numeric(as.factor(x))  ) %>%
   reshape2::melt(id.vars="Enterotypes_id") %>%
-  ggplot() + geom_bar(aes(x=Enterotypes_id, fill=value%>%as.character), position="fill") + facet_wrap(~variable, scale="free") + scale_fill_brewer()
+  ggplot() + geom_bar(aes(x=Enterotypes_id, fill=value%>%as.character), position="fill") + facet_wrap(~variable) + scale_fill_brewer()
 
 
 
