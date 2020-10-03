@@ -1,0 +1,942 @@
+---
+title: "partition vs diet"
+output: html_notebook
+---
+
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+devtools::load_all(reset = FALSE)
+
+
+```
+
+
+
+
+## load enterotypes set from DMM analysis
+```{r}
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+enterotypes %>% head
+
+
+
+```
+
+
+
+## import shannon
+```{r}
+
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "agp")
+
+shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
+
+enterotypes %>%
+  merge(.,shannon, by.x="sample_name", by.y="row.names") -> enterotypes
+
+
+```
+
+
+
+
+
+## metadata cleaning
+
+
+```{r}
+
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+
+
+variable_to_remove= c("HEIGHT_CM", 
+"WEIGHT_KG",
+"SAMPLE_TYPE",
+"BMI_CAT",
+"HOST_SUBJECT_ID",
+"ANONYMIZED_NAME",
+"ASSIGNED_FROM_GEO",
+"BIRTH_YEAR",
+"DESCRIPTION",
+"DNA_EXTRACTED",
+"HEIGHT_UNITS",
+"WEIGHT_UNITS",
+"SCIENTIFIC_NAME",
+"SURVEY_ID",
+"TAXON_ID",
+"WEIGHT_UNITS",
+"VIOSCREEN_STATUS","PUBLIC","TITLE")
+
+
+metadata$SUBSET_IBD %>% as.factor %>% summary
+
+metadata %>% 
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(!is.na(TYPES_OF_PLANTS)) %>%
+  filter(!is.na(ANTIBIOTIC_HISTORY)) %>%
+  filter(!is.na(COUNTRY_OF_BIRTH)) %>%
+  filter(!is.na(DIET_TYPE)) %>%
+  filter(!is.na(LACTOSE)) %>%
+  filter(!is.na(ALCOHOL_FREQUENCY)) %>%
+  filter(!is.na(IBD)) %>%
+  filter(!is.na(SEX)) %>%
+  filter(!is.na(BMI)) %>%
+  filter(!is.na(RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(WHOLE_GRAIN_FREQUENCY)) %>%
+  filter(!is.na(VEGETABLE_FREQUENCY)) %>%
+  filter(!is.na(MILK_CHEESE_FREQUENCY)) %>%
+  filter(!is.na(MEAT_EGGS_FREQUENCY)) %>%
+  filter(!is.na(PREPARED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(DRINKING_WATER_SOURCE)) %>%
+  filter(!is.na(EXERCISE_FREQUENCY)) %>%
+  filter(!is.na(FRUIT_FREQUENCY)) %>%
+  filter(!is.na(ONE_LITER_OF_WATER_A_DAY_FREQUENCY)) %>%
+  filter(!is.na(FERMENTED_PLANT_FREQUENCY)) %>%
+  filter(!is.na(SUGARY_SWEETS_FREQUENCY)) %>%
+  filter(!is.na(MILK_SUBSTITUTE_FREQUENCY)) %>%
+  filter(!is.na(SMOKING_FREQUENCY)) %>%
+  filter(!is.na(PROBIOTIC_FREQUENCY)) %>%
+  filter(!is.na(SEAFOOD_FREQUENCY)) %>%
+  filter(!is.na(HOMECOOKED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(HIGH_FAT_RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(SUGAR_SWEETENED_DRINK_FREQUENCY)) %>%
+  select(which(colMeans(is.na(.)) == 0)) %>%
+  #dim
+  summarise_all(funs(sum(is.na(.)))) %>%
+  reshape2::melt() %>%
+  arrange((value))
+
+
+
+metadata %>% 
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(!is.na(TYPES_OF_PLANTS)) %>%
+  filter(!is.na(ANTIBIOTIC_HISTORY)) %>%
+  filter(!is.na(COUNTRY_OF_BIRTH)) %>%
+  filter(!is.na(DIET_TYPE)) %>%
+  filter(!is.na(LACTOSE)) %>%
+  filter(!is.na(ALCOHOL_FREQUENCY)) %>%
+  filter(!is.na(IBD)) %>%
+  filter(!is.na(SEX)) %>%
+  filter(!is.na(BMI)) %>%
+  filter(!is.na(RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(WHOLE_GRAIN_FREQUENCY)) %>%
+  filter(!is.na(VEGETABLE_FREQUENCY)) %>%
+  filter(!is.na(MILK_CHEESE_FREQUENCY)) %>%
+  filter(!is.na(MEAT_EGGS_FREQUENCY)) %>%
+  filter(!is.na(PREPARED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(DRINKING_WATER_SOURCE)) %>%
+  filter(!is.na(EXERCISE_FREQUENCY)) %>%
+  filter(!is.na(FRUIT_FREQUENCY)) %>%
+  filter(!is.na(ONE_LITER_OF_WATER_A_DAY_FREQUENCY)) %>%
+  filter(!is.na(FERMENTED_PLANT_FREQUENCY)) %>%
+  filter(!is.na(SUGARY_SWEETS_FREQUENCY)) %>%
+  filter(!is.na(MILK_SUBSTITUTE_FREQUENCY)) %>%
+  filter(!is.na(SMOKING_FREQUENCY)) %>%
+  filter(!is.na(PROBIOTIC_FREQUENCY)) %>%
+  filter(!is.na(SEAFOOD_FREQUENCY)) %>%
+  filter(!is.na(HOMECOOKED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(HIGH_FAT_RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(SUGAR_SWEETENED_DRINK_FREQUENCY)) %>%
+  select(which(colMeans(is.na(.)) == 0)) %>% 
+  select(    -contains("SUBSET"),-contains("BODY"),
+    -contains("ENV_"),-contains("HOST"),
+    -contains("PHYSICAL_SPECIMEN_"), -c(all_of(variable_to_remove))) %>% 
+  mutate_all(function(x){ifelse(x=="Yes","true",ifelse(x=="No","false",x))}) %>%
+  mutate_all(function(x){ifelse(x=="true",1,ifelse(x=="false",0,x))}) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","COUNTRY_OF_BIRTH","AGE_YEARS","BMI")) %>%
+  mutate(value = value %>% recode(
+                            `Daily` = "30",
+                            `Never` = "0",
+                            `Never` = "0",
+                            `Occasionally (1-2 times/week)` = "6",
+                            `Rarely (a few times/month)` = "2",
+                            `Rarely (less than once/week)` = "2",
+                            `Regularly (3-5 times/week)` = "16",
+                            `Less than 5` = "0",
+                            `6 to 10` = "6",
+                            `11 to 20` = "11",
+                            `21 to 30` = "21",
+                            `More than 30` = "30",
+                            `6 months` = "182",
+                            `I have not taken antibiotics in the past year.` = "548",
+                            `Month` = "30",
+                            `Week` = "7",
+                            `Year` = "365",
+                            `Diagnosed by a medical professional (doctor, physician assistant)` = "1",
+                            `I do not have this condition` = "0",
+                            `Diagnosed by an alternative medicine practitioner` = "0.5",
+                            `Self-diagnosed` = "0.5"
+                             
+                             
+                             )) %>%
+  reshape2::dcast(SAMPLE_NAME+COUNTRY_OF_BIRTH+AGE_YEARS+BMI~variable) %>%
+  mutate_at(vars(matches("FREQUENCY"),"ANTIBIOTIC_HISTORY","AGE_YEARS","BMI","TYPES_OF_PLANTS"), as.numeric) -> metadata_cleaned
+
+```
+
+
+
+
+```{r}
+
+colnames(metadata_cleaned)
+
+metadata_cleaned %>%
+  select(-COUNTRY_OF_BIRTH) %>%
+  mutate(value=1) %>%
+  tidyr::spread(DIET_TYPE, value,  fill = 0 ) %>%
+  mutate(value=1) %>%
+  tidyr::spread(DRINKING_WATER_SOURCE, value,  fill = 0 ) %>%
+    mutate(value=1) %>%
+  tidyr::spread(COLLECTION_SEASON, value,  fill = 0 ) %>%
+  mutate(SEX = SEX %>% as.factor() %>% as.numeric()) %>%
+  mutate(SEX = SEX - 1) %>%
+   mutate_at(vars(!contains("SAMPLE_NAME")), as.numeric) %>%
+merge(.,enterotypes %>% mutate(Enterotypes_id = Enterotypes_id %>% as.character() ) %>% select(1,2,shannon), by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  group_by(variable,Enterotypes_id) %>%
+  summarise(mean=mean(value) %>% round(2), SD = sd(value)  %>% round(2), median = median(value),  q25 = quantile(value,0.25), q75=quantile(value,0.75)) %>%
+  na.omit() -> metadata_diet_enterotypes
+  
+
+
+write.csv2(metadata_diet_enterotypes, file = "metadata_diet_enterotypes.csv")
+
+
+  
+
+```
+
+### create frequency table
+
+
+```{r}
+
+
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+
+
+variable_to_remove= c("HEIGHT_CM", 
+"WEIGHT_KG",
+"SAMPLE_TYPE",
+"BMI",
+#"BMI_CAT",
+"HOST_SUBJECT_ID",
+"ANONYMIZED_NAME",
+"ASSIGNED_FROM_GEO",
+"BIRTH_YEAR",
+"DESCRIPTION",
+"DNA_EXTRACTED",
+"HEIGHT_UNITS",
+"WEIGHT_UNITS",
+"SCIENTIFIC_NAME",
+"SURVEY_ID",
+"TAXON_ID",
+"WEIGHT_UNITS",
+"VIOSCREEN_STATUS","PUBLIC","TITLE")
+
+
+metadata$SUBSET_IBD %>% as.factor %>% summary
+
+metadata %>% 
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(!is.na(TYPES_OF_PLANTS)) %>%
+  filter(!is.na(ANTIBIOTIC_HISTORY)) %>%
+  filter(!is.na(COUNTRY_OF_BIRTH)) %>%
+  filter(!is.na(DIET_TYPE)) %>%
+  filter(!is.na(LACTOSE)) %>%
+  filter(!is.na(ALCOHOL_FREQUENCY)) %>%
+  filter(!is.na(IBD)) %>%
+  filter(!is.na(SEX)) %>%
+  filter(!is.na(BMI_CAT)) %>%
+  filter(!is.na(RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(WHOLE_GRAIN_FREQUENCY)) %>%
+  filter(!is.na(VEGETABLE_FREQUENCY)) %>%
+  filter(!is.na(MILK_CHEESE_FREQUENCY)) %>%
+  filter(!is.na(MEAT_EGGS_FREQUENCY)) %>%
+  filter(!is.na(PREPARED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(DRINKING_WATER_SOURCE)) %>%
+  filter(!is.na(EXERCISE_FREQUENCY)) %>%
+  filter(!is.na(FRUIT_FREQUENCY)) %>%
+  filter(!is.na(ONE_LITER_OF_WATER_A_DAY_FREQUENCY)) %>%
+  filter(!is.na(FERMENTED_PLANT_FREQUENCY)) %>%
+  filter(!is.na(SUGARY_SWEETS_FREQUENCY)) %>%
+  filter(!is.na(MILK_SUBSTITUTE_FREQUENCY)) %>%
+  filter(!is.na(SMOKING_FREQUENCY)) %>%
+  filter(!is.na(PROBIOTIC_FREQUENCY)) %>%
+  filter(!is.na(SEAFOOD_FREQUENCY)) %>%
+  filter(!is.na(HOMECOOKED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(HIGH_FAT_RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(SUGAR_SWEETENED_DRINK_FREQUENCY)) %>%
+  
+  filter(!is.na(READY_TO_EAT_MEALS_FREQUENCY)) %>%
+  filter(!is.na(SUGAR_SWEETENED_DRINK_FREQUENCY)) %>%
+  filter(!is.na(SALTED_SNACKS_FREQUENCY)) %>%
+  filter(!is.na(SPECIALIZED_DIET_FODMAP)) %>%
+  
+  filter(!is.na(SPECIALIZED_DIET_FODMAP)) %>%
+  filter(!is.na(SPECIALIZED_DIET_EXCLUDE_DAIRY)) %>%
+  filter(!is.na(SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES)) %>%
+  
+  filter(!is.na(SPECIALIZED_DIET_MODIFIED_PALEO_DIET)) %>%
+  filter(!is.na(SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET)) %>%
+  filter(!is.na(OLIVE_OIL)) %>%
+  
+  select(which(colMeans(is.na(.)) == 0)) %>%
+  #dim
+  summarise_all(funs(sum(is.na(.)))) %>%
+  reshape2::melt() %>%
+  arrange((value))
+
+xx=c("READY_TO_EAT_MEALS_FREQUENCY",
+"BOWEL_MOVEMENT_QUALITY",
+"SPECIALIZED_DIET_FODMAP",
+"SPECIALIZED_DIET_EXCLUDE_DAIRY",
+"SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+"SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+"SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET",
+"OLIVE_OIL",
+"IBD",
+"SALTED_SNACKS_FREQUENCY")
+
+metadata %>% 
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(!is.na(TYPES_OF_PLANTS)) %>%
+  filter(!is.na(ANTIBIOTIC_HISTORY)) %>%
+  filter(!is.na(COUNTRY_OF_BIRTH)) %>%
+  filter(!is.na(DIET_TYPE)) %>%
+  filter(!is.na(LACTOSE)) %>%
+  filter(!is.na(ALCOHOL_FREQUENCY)) %>%
+  filter(!is.na(IBD)) %>%
+  filter(!is.na(SEX)) %>%
+  filter(!is.na(BMI_CAT)) %>%
+  filter(!is.na(RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(WHOLE_GRAIN_FREQUENCY)) %>%
+  filter(!is.na(VEGETABLE_FREQUENCY)) %>%
+  filter(!is.na(MILK_CHEESE_FREQUENCY)) %>%
+  filter(!is.na(MEAT_EGGS_FREQUENCY)) %>%
+  filter(!is.na(PREPARED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(DRINKING_WATER_SOURCE)) %>%
+  filter(!is.na(EXERCISE_FREQUENCY)) %>%
+  filter(!is.na(FRUIT_FREQUENCY)) %>%
+  filter(!is.na(ONE_LITER_OF_WATER_A_DAY_FREQUENCY)) %>%
+  filter(!is.na(FERMENTED_PLANT_FREQUENCY)) %>%
+  filter(!is.na(SUGARY_SWEETS_FREQUENCY)) %>%
+  filter(!is.na(MILK_SUBSTITUTE_FREQUENCY)) %>%
+  filter(!is.na(SMOKING_FREQUENCY)) %>%
+  filter(!is.na(PROBIOTIC_FREQUENCY)) %>%
+  filter(!is.na(SEAFOOD_FREQUENCY)) %>%
+  filter(!is.na(HOMECOOKED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(HIGH_FAT_RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(SUGAR_SWEETENED_DRINK_FREQUENCY)) %>%
+  
+  filter(!is.na(READY_TO_EAT_MEALS_FREQUENCY)) %>%
+  filter(!is.na(SUGAR_SWEETENED_DRINK_FREQUENCY)) %>%
+  filter(!is.na(SALTED_SNACKS_FREQUENCY)) %>%
+  filter(!is.na(SPECIALIZED_DIET_FODMAP)) %>%
+  
+  filter(!is.na(SPECIALIZED_DIET_FODMAP)) %>%
+  filter(!is.na(SPECIALIZED_DIET_EXCLUDE_DAIRY)) %>%
+  filter(!is.na(SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES)) %>%
+  
+  filter(!is.na(SPECIALIZED_DIET_MODIFIED_PALEO_DIET)) %>%
+  filter(!is.na(SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET)) %>%
+  filter(!is.na(OLIVE_OIL)) %>%
+  select(which(colMeans(is.na(.)) == 0)) %>% 
+  select(    -contains("SUBSET"),-contains("BODY"),
+    -contains("ENV_"),-contains("HOST"),
+    -contains("PHYSICAL_SPECIMEN_"), -c(all_of(variable_to_remove))) %>% 
+  mutate_all(function(x){ifelse(x=="Yes","true",ifelse(x=="No","false",x))}) %>%
+  mutate_all(function(x){ifelse(x=="true",1,ifelse(x=="false",0,x))}) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","COUNTRY_OF_BIRTH","AGE_YEARS")) -> metadata_freq
+  
+
+
+
+metadata_freq %>%
+  merge(.,enterotypes %>% mutate(Enterotypes_id = Enterotypes_id %>% as.character() ) %>% select(1,2), by.x="SAMPLE_NAME", by.y="sample_name") %>% 
+  group_by(Enterotypes_id,variable,value) %>%
+  summarise(n=n()) %>%
+  mutate(freq = n / sum(n)) -> metadata_diet_enterotypes_freq
+
+
+
+
+write.csv2(metadata_diet_enterotypes_freq, file = "metadata_diet_enterotypes_freq.csv")
+
+
+
+
+
+```
+
+
+
+## dataviz
+
+```{r fig.height=12, fig.width=8}
+
+
+metadata_diet_enterotypes %>%
+  select(variable,Enterotypes_id, mean) %>%
+  group_by(variable) %>%
+  mutate(mean=scale(mean)) %>%
+  ggplot() + geom_tile(aes(x=Enterotypes_id,variable,fill=mean)) + scale_fill_gradient2()
+
+
+
+```
+
+
+
+```{r}
+
+
+metadata_diet_enterotypes %>%
+  select(variable,Enterotypes_id, mean) %>%
+  group_by(variable) %>%
+  mutate(mean=scale(mean)) %>%
+  reshape2::dcast(Enterotypes_id~variable) %>%
+  tibble::column_to_rownames("Enterotypes_id") %>%
+  as.matrix() %>%
+  t() %>%
+  heatmap
+
+
+
+
+```
+
+
+### create healthy diet score index
+
+
+prepare data
+```{r}
+
+
+variable_to_remove= c("HEIGHT_CM", 
+"WEIGHT_KG",
+"SAMPLE_TYPE",
+"BMI",
+"BMI_CAT",
+"HOST_SUBJECT_ID",
+"ANONYMIZED_NAME",
+"ASSIGNED_FROM_GEO",
+"BIRTH_YEAR",
+"DESCRIPTION",
+"DNA_EXTRACTED",
+"HEIGHT_UNITS",
+"WEIGHT_UNITS",
+"SCIENTIFIC_NAME",
+"SURVEY_ID",
+"TAXON_ID",
+"WEIGHT_UNITS",
+"VIOSCREEN_STATUS","PUBLIC","TITLE")
+
+metadata %>% 
+  filter(SAMPLE_TYPE=="Stool") %>%
+  filter(!is.na(TYPES_OF_PLANTS)) %>%
+  filter(!is.na(DIET_TYPE)) %>%
+  filter(!is.na(ALCOHOL_FREQUENCY)) %>%
+  filter(!is.na(RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(WHOLE_GRAIN_FREQUENCY)) %>%
+  filter(!is.na(VEGETABLE_FREQUENCY)) %>%
+  filter(!is.na(MILK_CHEESE_FREQUENCY)) %>%
+  filter(!is.na(MEAT_EGGS_FREQUENCY)) %>%
+  filter(!is.na(PREPARED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(FRUIT_FREQUENCY)) %>%
+  filter(!is.na(ONE_LITER_OF_WATER_A_DAY_FREQUENCY)) %>%
+  filter(!is.na(SUGARY_SWEETS_FREQUENCY)) %>%
+  filter(!is.na(SEAFOOD_FREQUENCY)) %>%
+  filter(!is.na(HOMECOOKED_MEALS_FREQUENCY)) %>%
+  filter(!is.na(HIGH_FAT_RED_MEAT_FREQUENCY)) %>%
+  filter(!is.na(READY_TO_EAT_MEALS_FREQUENCY)) %>%
+  filter(!is.na(SUGAR_SWEETENED_DRINK_FREQUENCY)) %>%
+  filter(!is.na(SUGARY_SWEETS_FREQUENCY)) %>%
+  filter(!is.na(SALTED_SNACKS_FREQUENCY)) %>%
+  filter(!is.na(SPECIALIZED_DIET_FODMAP)) %>%
+  filter(!is.na(SPECIALIZED_DIET_EXCLUDE_DAIRY)) %>%
+  filter(!is.na(SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES)) %>%
+  filter(!is.na(SPECIALIZED_DIET_MODIFIED_PALEO_DIET)) %>%
+  filter(!is.na(SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET)) %>%
+  filter(!is.na(OLIVE_OIL)) %>%
+  select(    -contains("SUBSET"),-contains("BODY"),
+    -contains("ENV_"),-contains("HOST"), -contains("ALCOHOL_TYPES"),
+    -contains("PHYSICAL_SPECIMEN_"), -c(all_of(variable_to_remove))) %>% 
+  select(which(colMeans(is.na(.)) == 0)) %>% 
+  mutate_all(function(x){ifelse(x=="Yes","true",ifelse(x=="No","false",x))}) %>%
+  mutate_all(function(x){ifelse(x=="true",1,ifelse(x=="false",0,x))}) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME")) -> metadata_freq
+
+
+
+
+```
+
+
+create optimal rules
+```{r}
+
+diet_variables =
+  c("TYPES_OF_PLANTS",
+  "DIET_TYPE",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "SPECIALIZED_DIET_FODMAP",
+  "SPECIALIZED_DIET_EXCLUDE_DAIRY",
+  "SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+  "SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+  "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET",
+  "OLIVE_OIL")
+
+
+metadata_freq %>%
+  ungroup() %>%
+  select(variable,value) %>%
+  filter(variable %in% diet_variables) %>%
+  group_by(variable,value) %>%
+  arrange(variable,value) %>%
+  unique() %>%
+  mutate(points = 0) %>%
+  mutate(points = case_when(variable == "ALCOHOL_FREQUENCY" & value == "Never" ~ 1,
+                            variable == "ONE_LITER_OF_WATER_A_DAY_FREQUENCY" & value == "Daily" ~ 1,
+                            
+                            variable == "TYPES_OF_PLANTS" & value == "More than 30" ~ 1,
+                            variable == "TYPES_OF_PLANTS" & value == "11 to 20" ~ 1,
+                            variable == "TYPES_OF_PLANTS" & value == "21 to 30" ~ 1,
+                            
+                            variable == "FRUIT_FREQUENCY" & value == "Daily" ~ 1,
+                            variable == "FRUIT_FREQUENCY" & value == "Regularly (3-5 times/week)" ~ 1,
+                            
+                            variable == "HIGH_FAT_RED_MEAT_FREQUENCY" & value == "Never" ~ 1,
+                            variable == "HIGH_FAT_RED_MEAT_FREQUENCY" & value == "Rarely (less than once/week) " ~ 1,
+                            
+                            variable == "HOMECOOKED_MEALS_FREQUENCY" & value == "Daily" ~ 1,
+                            variable == "HOMECOOKED_MEALS_FREQUENCY" & value == "Regularly (3-5 times/week)" ~ 1,
+                            
+                            variable == "MEAT_EGGS_FREQUENCY" & value == "Occasionally (1-2 times/week)" ~ 1,
+                            variable == "MEAT_EGGS_FREQUENCY" & value == "Rarely (less than once/week)" ~ 1,
+                            variable == "MEAT_EGGS_FREQUENCY" & value == "Regularly (3-5 times/week)" ~ 1,
+                            
+                            variable == "OLIVE_OIL" & value == "Daily" ~ 1,
+                            variable == "OLIVE_OIL" & value == "Regularly (3-5 times/week)" ~ 1,
+                            
+                            variable == "PREPARED_MEALS_FREQUENCY" & value == "Never" ~ 1,
+                            variable == "PREPARED_MEALS_FREQUENCY" & value == "Rarely (less than once/week)" ~ 1,
+                            
+                            variable == "READY_TO_EAT_MEALS_FREQUENCY" & value == "Never" ~ 1,
+                            variable == "READY_TO_EAT_MEALS_FREQUENCY" & value == "Rarely (less than once/week)" ~ 1,
+                            
+                            variable == "RED_MEAT_FREQUENCY" & value == "Occasionally (1-2 times/week)" ~ 1,
+                            variable == "RED_MEAT_FREQUENCY" & value == "Rarely (less than once/week)" ~ 1,
+                            variable == "RED_MEAT_FREQUENCY" & value == "Regularly (3-5 times/week)" ~ 1,
+                            
+                            variable == "SALTED_SNACKS_FREQUENCY" & value == "Never" ~ 1,
+                            variable == "SALTED_SNACKS_FREQUENCY" & value == "Rarely (less than once/week)" ~ 1,
+                            variable == "SALTED_SNACKS_FREQUENCY" & value == "Occasionally (1-2 times/week)" ~ 1,
+                            
+                            variable == "SEAFOOD_FREQUENCY" & value == "Daily" ~ 1,
+                            variable == "SEAFOOD_FREQUENCY" & value == "Rarely (less than once/week)" ~ 1,
+                            variable == "SEAFOOD_FREQUENCY" & value == "Occasionally (1-2 times/week)" ~ 1,
+                            variable == "SEAFOOD_FREQUENCY" & value == "Regularly (3-5 times/week)" ~ 1,
+                            
+                            variable == "SUGARY_SWEETS_FREQUENCY" & value == "Never" ~ 1,
+                            variable == "SUGARY_SWEETS_FREQUENCY" & value == "Rarely (less than once/week)" ~ 1,
+                            variable == "SUGARY_SWEETS_FREQUENCY" & value == "Occasionally (1-2 times/week)" ~ 1,
+                            
+                            variable == "SUGAR_SWEETENED_DRINK_FREQUENCY" & value == "Never" ~ 1,
+                            variable == "SUGAR_SWEETENED_DRINK_FREQUENCY" & value == "Rarely (less than once/week)" ~ 1,
+                            variable == "SUGAR_SWEETENED_DRINK_FREQUENCY" & value == "Occasionally (1-2 times/week)" ~ 1,
+                            
+                            variable == "VEGETABLE_FREQUENCY" & value == "Daily" ~ 1,
+                            variable == "VEGETABLE_FREQUENCY" & value == "Regularly (3-5 times/week)" ~ 1,
+                            
+                            variable == "WHOLE_GRAIN_FREQUENCY" & value == "Daily" ~ 1,
+                            variable == "WHOLE_GRAIN_FREQUENCY" & value == "Rarely (less than once/week)" ~ 1,
+                            variable == "WHOLE_GRAIN_FREQUENCY" & value == "Occasionally (1-2 times/week)" ~ 1,
+                            variable == "WHOLE_GRAIN_FREQUENCY" & value == "Regularly (3-5 times/week)" ~ 1,
+                            
+                            variable == "DIET_TYPE" & value != "Vegan" ~ 1,
+                            
+                            variable %in%  c("SPECIALIZED_DIET_EXCLUDE_DAIRY",
+                                             "SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+                                             "SPECIALIZED_DIET_FODMAP",
+                                             "SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+                                             "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET") & value == "0" ~ 1,
+                            
+                            TRUE ~ 0)) -> diet_scoring_rules
+
+write.csv2(diet_scoring_rules,file="diet_scoring_rules.csv")
+  
+diet_scoring_rules
+
+
+```
+
+
+
+```{r}
+
+
+compute_diet_score = function(metadata_freq, diet_variables=NULL, diet_scoring_rules=NULL) {
+
+diet_variables =
+  c("TYPES_OF_PLANTS",
+  #"DIET_TYPE",
+  #"ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  #"ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  #"SPECIALIZED_DIET_FODMAP",
+  #"SPECIALIZED_DIET_EXCLUDE_DAIRY",
+  #"SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+  #"SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+  #"SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET",
+  "OLIVE_OIL")
+
+
+diet_scoring_rules <- structure(list(variable = structure(c(1L, 1L, 1L, 1L, 1L, 2L, 
+2L, 2L, 2L, 2L, 3L, 3L, 3L, 3L, 3L, 4L, 4L, 4L, 4L, 4L, 5L, 5L, 
+5L, 5L, 5L, 6L, 6L, 6L, 6L, 6L, 7L, 7L, 7L, 7L, 7L, 9L, 9L, 9L, 
+9L, 9L, 10L, 10L, 10L, 10L, 10L, 11L, 11L, 11L, 11L, 11L, 12L, 
+12L, 12L, 12L, 12L, 13L, 13L, 13L, 13L, 13L, 14L, 14L, 14L, 14L, 
+14L, 15L, 15L, 15L, 15L, 15L, 16L, 16L, 16L, 16L, 16L, 17L, 17L, 
+17L, 17L, 17L, 18L, 18L, 18L, 18L, 18L, 26L, 26L, 26L, 26L, 26L, 
+41L, 41L, 42L, 42L, 44L, 44L, 48L, 48L, 50L, 50L), .Label = c("ALCOHOL_FREQUENCY", 
+"ONE_LITER_OF_WATER_A_DAY_FREQUENCY", "TYPES_OF_PLANTS", "FRUIT_FREQUENCY", 
+"HIGH_FAT_RED_MEAT_FREQUENCY", "HOMECOOKED_MEALS_FREQUENCY", 
+"MEAT_EGGS_FREQUENCY", "MILK_CHEESE_FREQUENCY", "OLIVE_OIL", 
+"PREPARED_MEALS_FREQUENCY", "READY_TO_EAT_MEALS_FREQUENCY", "RED_MEAT_FREQUENCY", 
+"SALTED_SNACKS_FREQUENCY", "SEAFOOD_FREQUENCY", "SUGARY_SWEETS_FREQUENCY", 
+"SUGAR_SWEETENED_DRINK_FREQUENCY", "VEGETABLE_FREQUENCY", "WHOLE_GRAIN_FREQUENCY", 
+"ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF", "ALLERGIC_TO_OTHER", 
+"ALLERGIC_TO_PEANUTS", "ALLERGIC_TO_SHELLFISH", "ALLERGIC_TO_TREE_NUTS", 
+"ALLERGIC_TO_UNSPECIFIED", "COLLECTION_SEASON", "DIET_TYPE", 
+"MENTAL_ILLNESS_TYPE_ANOREXIA_NERVOSA", "MENTAL_ILLNESS_TYPE_BIPOLAR_DISORDER", 
+"MENTAL_ILLNESS_TYPE_BULIMIA_NERVOSA", "MENTAL_ILLNESS_TYPE_DEPRESSION", 
+"MENTAL_ILLNESS_TYPE_PTSD_POSTTRAUMATIC_STRESS_DISORDER", "MENTAL_ILLNESS_TYPE_SCHIZOPHRENIA", 
+"MENTAL_ILLNESS_TYPE_SUBSTANCE_ABUSE", "MENTAL_ILLNESS_TYPE_UNSPECIFIED", 
+"NON_FOOD_ALLERGIES_BEESTINGS", "NON_FOOD_ALLERGIES_DRUG_EG_PENICILLIN", 
+"NON_FOOD_ALLERGIES_PET_DANDER", "NON_FOOD_ALLERGIES_POISON_IVYOAK", 
+"NON_FOOD_ALLERGIES_SUN", "NON_FOOD_ALLERGIES_UNSPECIFIED", "SPECIALIZED_DIET_EXCLUDE_DAIRY", 
+"SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES", "SPECIALIZED_DIET_EXCLUDE_REFINED_SUGARS", 
+"SPECIALIZED_DIET_FODMAP", "SPECIALIZED_DIET_HALAAL", "SPECIALIZED_DIET_I_DO_NOT_EAT_A_SPECIALIZED_DIET", 
+"SPECIALIZED_DIET_KOSHER", "SPECIALIZED_DIET_MODIFIED_PALEO_DIET", 
+"SPECIALIZED_DIET_OTHER_RESTRICTIONS_NOT_DESCRIBED_HERE", "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET", 
+"SPECIALIZED_DIET_RAW_FOOD_DIET", "SPECIALIZED_DIET_UNSPECIFIED", 
+"SPECIALIZED_DIET_WESTENPRICE_OR_OTHER_LOWGRAIN_LOW_PROCESSED_FOOD_DIET"
+), class = "factor"), value = c("Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (a few times/month)", "Regularly (3-5 times/week)", "Daily", 
+"Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "11 to 20", "21 to 30", "6 to 10", 
+"Less than 5", "More than 30", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Omnivore", "Omnivore but do not eat red meat", 
+"Vegan", "Vegetarian", "Vegetarian but eat seafood", "0", "1", 
+"0", "1", "0", "1", "0", "1", "0", "1"), points = c(0, 1, 0, 
+0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 
+0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 
+0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 
+1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 
+0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0)), row.names = c(NA, -100L
+), groups = structure(list(variable = structure(c(1L, 1L, 1L, 
+1L, 1L, 2L, 2L, 2L, 2L, 2L, 3L, 3L, 3L, 3L, 3L, 4L, 4L, 4L, 4L, 
+4L, 5L, 5L, 5L, 5L, 5L, 6L, 6L, 6L, 6L, 6L, 7L, 7L, 7L, 7L, 7L, 
+9L, 9L, 9L, 9L, 9L, 10L, 10L, 10L, 10L, 10L, 11L, 11L, 11L, 11L, 
+11L, 12L, 12L, 12L, 12L, 12L, 13L, 13L, 13L, 13L, 13L, 14L, 14L, 
+14L, 14L, 14L, 15L, 15L, 15L, 15L, 15L, 16L, 16L, 16L, 16L, 16L, 
+17L, 17L, 17L, 17L, 17L, 18L, 18L, 18L, 18L, 18L, 26L, 26L, 26L, 
+26L, 26L, 41L, 41L, 42L, 42L, 44L, 44L, 48L, 48L, 50L, 50L), .Label = c("ALCOHOL_FREQUENCY", 
+"ONE_LITER_OF_WATER_A_DAY_FREQUENCY", "TYPES_OF_PLANTS", "FRUIT_FREQUENCY", 
+"HIGH_FAT_RED_MEAT_FREQUENCY", "HOMECOOKED_MEALS_FREQUENCY", 
+"MEAT_EGGS_FREQUENCY", "MILK_CHEESE_FREQUENCY", "OLIVE_OIL", 
+"PREPARED_MEALS_FREQUENCY", "READY_TO_EAT_MEALS_FREQUENCY", "RED_MEAT_FREQUENCY", 
+"SALTED_SNACKS_FREQUENCY", "SEAFOOD_FREQUENCY", "SUGARY_SWEETS_FREQUENCY", 
+"SUGAR_SWEETENED_DRINK_FREQUENCY", "VEGETABLE_FREQUENCY", "WHOLE_GRAIN_FREQUENCY", 
+"ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF", "ALLERGIC_TO_OTHER", 
+"ALLERGIC_TO_PEANUTS", "ALLERGIC_TO_SHELLFISH", "ALLERGIC_TO_TREE_NUTS", 
+"ALLERGIC_TO_UNSPECIFIED", "COLLECTION_SEASON", "DIET_TYPE", 
+"MENTAL_ILLNESS_TYPE_ANOREXIA_NERVOSA", "MENTAL_ILLNESS_TYPE_BIPOLAR_DISORDER", 
+"MENTAL_ILLNESS_TYPE_BULIMIA_NERVOSA", "MENTAL_ILLNESS_TYPE_DEPRESSION", 
+"MENTAL_ILLNESS_TYPE_PTSD_POSTTRAUMATIC_STRESS_DISORDER", "MENTAL_ILLNESS_TYPE_SCHIZOPHRENIA", 
+"MENTAL_ILLNESS_TYPE_SUBSTANCE_ABUSE", "MENTAL_ILLNESS_TYPE_UNSPECIFIED", 
+"NON_FOOD_ALLERGIES_BEESTINGS", "NON_FOOD_ALLERGIES_DRUG_EG_PENICILLIN", 
+"NON_FOOD_ALLERGIES_PET_DANDER", "NON_FOOD_ALLERGIES_POISON_IVYOAK", 
+"NON_FOOD_ALLERGIES_SUN", "NON_FOOD_ALLERGIES_UNSPECIFIED", "SPECIALIZED_DIET_EXCLUDE_DAIRY", 
+"SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES", "SPECIALIZED_DIET_EXCLUDE_REFINED_SUGARS", 
+"SPECIALIZED_DIET_FODMAP", "SPECIALIZED_DIET_HALAAL", "SPECIALIZED_DIET_I_DO_NOT_EAT_A_SPECIALIZED_DIET", 
+"SPECIALIZED_DIET_KOSHER", "SPECIALIZED_DIET_MODIFIED_PALEO_DIET", 
+"SPECIALIZED_DIET_OTHER_RESTRICTIONS_NOT_DESCRIBED_HERE", "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET", 
+"SPECIALIZED_DIET_RAW_FOOD_DIET", "SPECIALIZED_DIET_UNSPECIFIED", 
+"SPECIALIZED_DIET_WESTENPRICE_OR_OTHER_LOWGRAIN_LOW_PROCESSED_FOOD_DIET"
+), class = "factor"), value = c("Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (a few times/month)", "Regularly (3-5 times/week)", "Daily", 
+"Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "11 to 20", "21 to 30", "6 to 10", 
+"Less than 5", "More than 30", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Daily", "Never", "Occasionally (1-2 times/week)", 
+"Rarely (less than once/week)", "Regularly (3-5 times/week)", 
+"Daily", "Never", "Occasionally (1-2 times/week)", "Rarely (less than once/week)", 
+"Regularly (3-5 times/week)", "Omnivore", "Omnivore but do not eat red meat", 
+"Vegan", "Vegetarian", "Vegetarian but eat seafood", "0", "1", 
+"0", "1", "0", "1", "0", "1", "0", "1"), .rows = structure(list(
+    1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 
+    15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 
+    27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 
+    39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L, 49L, 50L, 
+    51L, 52L, 53L, 54L, 55L, 56L, 57L, 58L, 59L, 60L, 61L, 62L, 
+    63L, 64L, 65L, 66L, 67L, 68L, 69L, 70L, 71L, 72L, 73L, 74L, 
+    75L, 76L, 77L, 78L, 79L, 80L, 81L, 82L, 83L, 84L, 85L, 86L, 
+    87L, 88L, 89L, 90L, 91L, 92L, 93L, 94L, 95L, 96L, 97L, 98L, 
+    99L, 100L), ptype = integer(0), class = c("vctrs_list_of", 
+"vctrs_vctr", "list"))), row.names = c(NA, 100L), class = c("tbl_df", 
+"tbl", "data.frame"), .drop = TRUE), class = c("grouped_df", 
+"tbl_df", "tbl", "data.frame"))
+
+diet_score <- metadata_freq %>%
+  filter(variable %in% diet_variables) %>%
+  merge(diet_scoring_rules, by=c("variable","value")) %>%
+  group_by(SAMPLE_NAME) %>%
+  summarise(score=sum(points)) 
+
+return(diet_score)
+
+}
+
+
+
+
+
+```
+
+
+
+
+
+
+```{r}
+
+compute_diet_score(metadata_freq) %>%
+  merge(enterotypes %>% select(1,2,5), by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  ggplot() + geom_boxplot(aes(x=Enterotypes_id %>% as.character(),y=score))
+
+
+compute_diet_score(metadata_freq) %>%
+  merge(enterotypes %>% select(1,2,5), by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  ggplot() + geom_point(aes(x=score,y=shannon))
+
+
+```
+
+
+
+```{r}
+
+metadata_freq %>%
+  filter(variable %in% diet_variables) %>%
+  merge(diet_scoring_rules, by=c("variable","value")) %>%
+  merge(enterotypes %>% select(1,2), by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  na.omit() %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character()) %>%
+  group_by(Enterotypes_id,variable) %>%
+  summarise(n=n(), score = sum(points)/n) %>%
+  ungroup() %>%
+  group_by(variable) %>%
+  mutate(rank=rank(score)) %>%
+  ungroup() %>%
+  group_by(Enterotypes_id) %>%
+  summarise(cumul_score=sum(rank)) %>%
+  arrange(cumul_score) 
+   
+  
+metadata_freq %>%
+  filter(variable %in% diet_variables) %>%
+  merge(diet_scoring_rules, by=c("variable","value")) %>%
+  merge(enterotypes %>% select(1,2), by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  na.omit() %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character()) %>%
+  group_by(Enterotypes_id,variable) %>%
+  summarise(n=n(), score = sum(points)/n) %>%
+  ungroup() %>%
+  group_by(variable) %>%
+  mutate(rank=rank(score)) %>%
+  ggplot() + geom_tile(aes(Enterotypes_id,variable, fill=rank))
+  
+  
+  metadata_freq %>%
+  filter(variable %in% diet_variables) %>%
+  merge(diet_scoring_rules, by=c("variable","value")) %>%
+  merge(enterotypes %>% select(1,2), by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  na.omit() %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character()) %>%
+  group_by(Enterotypes_id,variable) %>%
+  summarise(n=n(), score = sum(points)/n) %>%
+  ungroup() %>%
+  group_by(variable) %>%
+  mutate(rank=rank(score)) %>%
+    reshape2::dcast(Enterotypes_id~variable, value.var="rank") %>%
+    tibble::column_to_rownames("Enterotypes_id") %>%
+    as.matrix() %>%
+    #t() %>%
+    ade4::dudi.pca(scannf=F,nf=2) %>% ade4::scatter()
+
+metadata_freq %>%
+  filter(variable %in% diet_variables) %>%
+  merge(diet_scoring_rules, by=c("variable","value")) %>%
+  merge(enterotypes %>% select(1,2), by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  na.omit() %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character()) %>%
+  group_by(Enterotypes_id,variable) %>%
+  summarise(n=n(), score = sum(points)/n) %>%
+  ungroup() %>%
+  group_by(variable) %>%
+  mutate(rank=rank(score)) %>%
+    reshape2::dcast(Enterotypes_id~variable, value.var="rank") %>%
+    tibble::column_to_rownames("Enterotypes_id") %>%
+    as.matrix() %>%
+    #t() %>%
+    ade4::dudi.pca(scannf=F,nf=2) %>% .$li %>% ade4::s.label()
+
+  metadata_freq %>%
+  filter(variable %in% diet_variables) %>%
+  merge(diet_scoring_rules, by=c("variable","value")) %>%
+  merge(enterotypes %>% select(1,2), by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  na.omit() %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character()) %>%
+  group_by(Enterotypes_id,variable) %>%
+  summarise(n=n(), score = sum(points)/n) %>%
+  ungroup() %>%
+  group_by(variable) %>%
+  mutate(rank=rank(score)) %>%
+    reshape2::dcast(Enterotypes_id~variable, value.var="rank") %>%
+    tibble::column_to_rownames("Enterotypes_id") %>%
+    as.matrix() %>%
+    t() %>%
+    heatmap()
+  
+  
+```
+
+
+```{r}
+
+
+metadata_freq %>%
+  filter(variable %in% diet_variables) %>%
+  merge(diet_scoring_rules, by=c("variable","value")) %>%
+  reshape2::dcast(SAMPLE_NAME~variable, value.var = "points") %>%
+  tibble::column_to_rownames("SAMPLE_NAME") -> diet_binary_df
+  
+diet_binary_df %>%
+  ade4::dist.binary(method=1) -> diet_dist_binary
+
+
+
+
+ade4::dudi.pco(diet_dist_binary,scannf=FALSE, nf=3) -> diet_binary_pco
+
+
+diet_binary_pco$li %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  ggplot() + geom_point(aes(x=A1,y=A2, color=shannon)) +facet_wrap(~Enterotypes_id%>%as.character)
+  
+diet_binary_pco$li %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  ggplot() + geom_boxplot(aes(x=Enterotypes_id%>%as.character,y=A2))
+
+diet_binary_pco$li %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  with(.,cor.test(.$A2,.$shannon, method="spearman"))
+
+
+
+
+metadata_freq %>%
+  filter(variable %in% diet_variables) %>%
+  merge(diet_scoring_rules, by=c("variable","value")) %>%
+  merge(diet_binary_pco$li, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  ggplot() + geom_boxplot(aes(x=variable,y=A1,fill=points%>%as.character())) + coord_flip()
+
+
+  
+  
+
+```
+
+```{r}
+
+
+diet_binary_pco
+
+
+```
+
