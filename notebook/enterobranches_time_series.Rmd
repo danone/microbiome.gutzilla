@@ -1,0 +1,438 @@
+---
+title: "enterobranches vs time-series"
+output: html_notebook
+---
+
+
+
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+devtools::load_all(reset = FALSE)
+
+
+
+
+```
+
+
+```{r}
+
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+
+
+```
+
+```{r}
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_date()) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  summarise(n=n()) %>%
+  filter(n>1) %>%
+  pull(n) %>% table
+
+
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_date()) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  mutate(sample_order=rank(days)) %>% 
+  ggplot() + geom_line(aes(x=days,y=sample_order, group=HOST_SUBJECT_ID)) + scale_y_log10()
+
+
+
+```
+
+
+
+```{r}
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_date()) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  mutate(sample_order=rank(days)) %>% 
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  mutate(sample_order=rank(days)) %>% 
+  xtabs(~ branches + HOST_SUBJECT_ID, data=.) %>%
+  as.data.frame %>%
+  filter(Freq!=0)
+
+
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_date()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>% 
+  arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>% 
+  filter(any(days==0)) %>% 
+  filter(sample_order>1 & days <25) %>% head(1000)
+  ggplot() + geom_tile(aes(x=sample_order,y=HOST_SUBJECT_ID, fill=branches)) +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) + facet_wrap(~days_0, scales="free_y")
+
+
+
+
+```
+
+
+```{r}
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_date()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>% 
+  arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  ggplot() + geom_point(aes(x=days +1,y=HOST_SUBJECT_ID, col=branches), shape=15) +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) + facet_wrap(~days_0, scales="free_y") + scale_x_log10()
+ 
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_date()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>% 
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  filter(days > 0, days<365) %>%
+  ungroup() %>%
+  select(days_0,branches) %>% 
+  xtabs(~days_0+branches, data=.) %>% prop.table(1)
+
+
+
+
+
+```
+
+
+
+
+
+
+```{r}
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_date()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>% 
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(HOST_SUBJECT_ID, days, sample_order, branches) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), branches_before=lag(branches), days_delta= days - lag(days)) %>% 
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  ggplot() + geom_boxplot(aes(x=branches_pairs, y=days_delta+1)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ 
+  scale_y_log10() + facet_wrap(~branches_before, scales = "free", nrow=1)
+
+
+
+
+```
+
+
+
+```{r}
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>% 
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(HOST_SUBJECT_ID, days, sample_order, branches) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), branches_before=lag(branches), days_delta= days - lag(days)) %>% 
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
+  ggplot() + geom_bar(aes(x=days_delta_bins, fill=branches), position="fill") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  scale_y_continuous(labels = scales::percent) + scale_fill_brewer("branches after", type="qual", palette = "Set1") +
+  facet_wrap(~branches_before) + xlab("days between two samples") + ylab("Samples %")
+
+
+```
+
+
+
+```{r}
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_date()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>% 
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(SAMPLE_NAME, HOST_SUBJECT_ID, days, sample_order, branches) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), branches_before=lag(branches), days_delta= days - lag(days)) %>% 
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  mutate(days_delta_bins = cut(days_delta, breaks = c(0,7,30,120,365,10000))) %>%
+  ungroup() %>%
+  filter(is.na(days_delta_bins))
+
+
+
+```
+
+
+```{r}
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>% 
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(SAMPLE_NAME, HOST_SUBJECT_ID, days, sample_order, branches, COLLECTION_TIMESTAMP)
+
+
+```
+
+```{r}
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>%
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(HOST_SUBJECT_ID, days, sample_order, branches, Enterotypes_id, shannon) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character ) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), 
+         branches_before=lag(branches), days_delta= days - lag(days), 
+         Enterotypes_id_before = lag(Enterotypes_id %>% as.character),
+         shannon_before = lag(shannon)) %>%
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
+  filter(branches_before == "Bacteroides DMM types", branches == "Bacteroides DMM types") %>%
+  
+  select(shannon_before,shannon,Enterotypes_id,Enterotypes_id_before) %>%
+  filter(!(Enterotypes_id==Enterotypes_id_before)) %>%
+    ungroup() %>%
+  group_by(Enterotypes_id,Enterotypes_id_before) %>%
+  summarise(shannon=median(shannon), shannon_before=median(shannon_before), n_p=n()) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% factor(level=c("2","4","3","10","8","6","15","11")),
+         Enterotypes_id_before = Enterotypes_id_before %>% factor(level=c("2","4","3","10","8","6","15","11"))) %>% 
+  mutate(shannon_sens = shannon_before> shannon, enterotype_sens = as.numeric(Enterotypes_id_before) > as.numeric(Enterotypes_id)) %>% 
+  ungroup() %>%
+  group_by(Enterotypes_id_before) %>%
+  arrange(n_p) %>%
+  slice(1:2) %>%
+  ggplot() + geom_segment(aes(y=shannon_before, yend=shannon, x=Enterotypes_id_before %>% factor(level=c("2","4","3","10","8","6","15","11")), xend=Enterotypes_id %>% factor(level=c("2","4","3","10","8","6","15","11")), color=enterotype_sens), arrow = arrow(length = unit(0.1,"cm")))
+
+
+
+```
+
