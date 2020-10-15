@@ -119,4 +119,43 @@ genus_phate$embedding %>%
 
 ```
 
+```{r}
+
+
+
+genus_count_dominant %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides","k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella") %>% 
+  merge(genus_phate$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(P_B_ratio = (`k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella`+1)/(`k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides`+1)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=P_B_ratio %>% log10())) + scale_color_viridis_c("log10(P/B ratio)")
+
+
+
+
+
+
+```
+
+
+
+
+```{r}
+
+alpha_shannon_curated = curatedMetaG_data %>%
+  select(contains("metaphlan_bugs_list.stool")) %>%
+  vegan::diversity(., MARGIN = 2)
+
+alpha_shannon_curated %>% head
+
+
+merge(genus_phate$embedding %>% as.data.frame, alpha_shannon_curated, by="row.names") %>%
+  dplyr::rename(shannon=y) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=shannon)) + scale_color_viridis_c("shannon")
+
+
+```
+
 
