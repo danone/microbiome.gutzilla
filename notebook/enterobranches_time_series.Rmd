@@ -375,7 +375,7 @@ metadata %>%
 
 ```
 
-```{r}
+```{r fig.height=8, fig.width=10}
 
 metadata %>%
   filter(SAMPLE_TYPE == "Stool") %>%
@@ -419,18 +419,141 @@ metadata %>%
   filter(branches_before == "Bacteroides DMM types", branches == "Bacteroides DMM types") %>%
   
   select(shannon_before,shannon,Enterotypes_id,Enterotypes_id_before) %>%
-  filter(!(Enterotypes_id==Enterotypes_id_before)) %>%
     ungroup() %>%
   group_by(Enterotypes_id,Enterotypes_id_before) %>%
   summarise(shannon=median(shannon), shannon_before=median(shannon_before), n_p=n()) %>%
-  mutate(Enterotypes_id = Enterotypes_id %>% factor(level=c("2","4","3","10","8","6","15","11")),
-         Enterotypes_id_before = Enterotypes_id_before %>% factor(level=c("2","4","3","10","8","6","15","11"))) %>% 
-  mutate(shannon_sens = shannon_before> shannon, enterotype_sens = as.numeric(Enterotypes_id_before) > as.numeric(Enterotypes_id)) %>% 
   ungroup() %>%
   group_by(Enterotypes_id_before) %>%
-  arrange(n_p) %>%
+  mutate(prop_n_p = n_p/sum(n_p)) %>%
+  group_by(Enterotypes_id_before) %>%
+  arrange(Enterotypes_id_before, desc(prop_n_p)) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% factor(level=c("2","4","3","10","8","6","15","11")),
+         Enterotypes_id_before = Enterotypes_id_before %>% factor(level=c("2","4","3","10","8","6","15","11"))) %>% 
+  mutate(shannon_sens = shannon_before> shannon, enterotype_sens = as.numeric(Enterotypes_id_before) > as.numeric(Enterotypes_id)) -> Bacteroides_enterotypes_shannon_pairs 
+
+
+
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>%
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(HOST_SUBJECT_ID, days, sample_order, branches, Enterotypes_id, shannon) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character ) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), 
+         branches_before=lag(branches), days_delta= days - lag(days), 
+         Enterotypes_id_before = lag(Enterotypes_id %>% as.character),
+         shannon_before = lag(shannon)) %>%
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
+  filter(branches_before == "Prevotella DMM types", branches == "Prevotella DMM types") %>%
+  
+  select(shannon_before,shannon,Enterotypes_id,Enterotypes_id_before) %>%
+    ungroup() %>%
+  group_by(Enterotypes_id,Enterotypes_id_before) %>%
+  summarise(shannon=median(shannon), shannon_before=median(shannon_before), n_p=n()) %>%
+  ungroup() %>%
+  group_by(Enterotypes_id_before) %>%
+  mutate(prop_n_p = n_p/sum(n_p)) %>%
+  group_by(Enterotypes_id_before) %>%
+  arrange(Enterotypes_id_before, desc(prop_n_p)) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% factor(level=c("7","17","16","14","18")),
+         Enterotypes_id_before = Enterotypes_id_before %>% factor(level=c("7","17","16","14","18"))) %>% 
+  mutate(shannon_sens = shannon_before> shannon, enterotype_sens = as.numeric(Enterotypes_id_before) > as.numeric(Enterotypes_id)) -> Prevotella_enterotypes_shannon_pairs 
+
+
+
+cowplot::plot_grid(
+Bacteroides_enterotypes_shannon_pairs %>%
+  ungroup() %>%
+  filter(!(Enterotypes_id==Enterotypes_id_before)) %>%
+  group_by(Enterotypes_id_before) %>%
+  arrange(Enterotypes_id_before, desc(n_p)) %>%
   slice(1:2) %>%
-  ggplot() + geom_segment(aes(y=shannon_before, yend=shannon, x=Enterotypes_id_before %>% factor(level=c("2","4","3","10","8","6","15","11")), xend=Enterotypes_id %>% factor(level=c("2","4","3","10","8","6","15","11")), color=enterotype_sens), arrow = arrow(length = unit(0.1,"cm")))
+  ggplot() + 
+  geom_segment(aes(y=shannon_before, 
+        yend=shannon, 
+        x=Enterotypes_id_before %>% factor(level=c("2","4","3","10","8","6","15","11")), 
+        xend=Enterotypes_id %>% factor(level=c("2","4","3","10","8","6","15","11")), 
+        color=enterotype_sens), 
+    arrow = arrow(length = unit(0.1,"cm"))) +
+  ggrepel::geom_text_repel(aes(x=Enterotypes_id_before %>% factor(level=c("2","4","3","10","8","6","15","11")),
+                y=shannon_before,
+                label=round(prop_n_p,2) %>% scales::percent(accuracy=1))) +
+  xlab("Bacteroides branch partition\nordered by PHATE centroid position") +
+  ylab("alpha-diversity\n(Shannon)") +
+  scale_color_discrete("", labels=c("toward branch-tip", "toward branch-root")),
+
+Bacteroides_enterotypes_shannon_pairs %>%
+  ungroup() %>%
+  filter((Enterotypes_id==Enterotypes_id_before)) %>%
+  ggplot() + 
+  geom_bar(aes(x=Enterotypes_id_before,y=prop_n_p, fill=shannon), stat="identity") +
+  scale_y_continuous(labels = scales::percent) +
+  xlab("Bacteroides branch partition\nordered by PHATE centroid position") +
+  ylab("stable participant sample-paired\nproportions"),
+
+
+
+
+
+Prevotella_enterotypes_shannon_pairs %>%
+  ungroup() %>%
+  filter(!(Enterotypes_id==Enterotypes_id_before)) %>%
+  group_by(Enterotypes_id_before) %>%
+  arrange(Enterotypes_id_before, desc(n_p)) %>%
+  slice(1:2) %>%
+  ggplot() + 
+  geom_segment(aes(y=shannon_before, 
+        yend=shannon, 
+        x=Enterotypes_id_before %>% factor(level=c("7","17","16","14","18")), 
+        xend=Enterotypes_id %>% factor(level=c("7","17","16","14","18")), 
+        color=enterotype_sens), 
+    arrow = arrow(length = unit(0.1,"cm"))) +
+  ggrepel::geom_text_repel(aes(x=Enterotypes_id_before %>% factor(level=c("7","17","16","14","18")),
+                y=shannon_before,
+                label=round(prop_n_p,2) %>% scales::percent(accuracy=1))) +
+  xlab("Prevotella branch partition\nordered by PHATE centroid position") +
+  ylab("alpha-diversity\n(Shannon)") +
+  scale_color_discrete("", labels=c("toward branch-tip", "toward branch-root")),
+
+Prevotella_enterotypes_shannon_pairs %>%
+  ungroup() %>%
+  filter((Enterotypes_id==Enterotypes_id_before)) %>%
+  ggplot() + 
+  geom_bar(aes(x=Enterotypes_id_before,y=prop_n_p, fill=shannon), stat="identity") +
+  scale_y_continuous(labels = scales::percent) +
+  xlab("Prevotella branch partition\nordered by PHATE centroid position") +
+  ylab("stable participant sample-paired\nproportions"), nrow = 2, rel_widths = c(2,1))
+
+
 
 
 
