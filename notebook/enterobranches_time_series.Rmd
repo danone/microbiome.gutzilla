@@ -559,3 +559,107 @@ Prevotella_enterotypes_shannon_pairs %>%
 
 ```
 
+## gut microbiota partitions networks based on times series 
+
+```{r}
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>%
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(HOST_SUBJECT_ID, days, sample_order, branches, Enterotypes_id, shannon) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character ) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), 
+         branches_before=lag(branches), days_delta= days - lag(days), 
+         Enterotypes_id_before = lag(Enterotypes_id %>% as.character),
+         shannon_before = lag(shannon)) %>%
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
+  ungroup() %>%
+  #filter(days_delta_bins %in% c("(-1,8.64e+04]","(8.64e+04,1.04e+07]")) %>%
+  group_by(Enterotypes_id_before,Enterotypes_id) %>%
+  summarise(n=n()) %>%
+  ungroup() %>%
+  arrange(Enterotypes_id_before,desc(n)) %>%
+  group_by(Enterotypes_id_before) %>%
+  mutate(p=n/sum(n)) %>%
+  slice(1:3) -> enterotypes_time_series_network
+   
+enterotypes_time_series_network %>%
+  group_by(Enterotypes_id_before) %>%
+  summarise(p=sum(p)) %>% pull(p) %>% summary() # if you select the top 2 switches + stability (=>66% average)
+
+
+
+enterotypes_time_series_network %>%
+  filter(Enterotypes_id_before==Enterotypes_id) %>%
+  select(Enterotypes_id_before,p) %>%
+  dplyr::rename(stability=p, Enterotypes_id=Enterotypes_id_before)-> enterotypes_time_series_stability
+
+enterotypes_time_series_network %>%
+  filter(!(Enterotypes_id_before==Enterotypes_id)) %>%
+  select(Enterotypes_id_before,Enterotypes_id, p) -> enterotypes_time_series_switch
+
+
+
+enterotypes_time_series_stability %>%
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")) -> enterotypes_time_series_stability
+```
+
+
+```{r}
+library(igraph)
+library(ggraph)
+
+
+#igraph::graph.data.frame(enterotypes_time_series_switch)
+graph <- igraph::graph_from_data_frame(enterotypes_time_series_switch)
+
+igraph::E(graph)
+
+igraph::V(graph)$stability <-  enterotypes_time_series_stability$p         
+igraph::V(graph)$branches <-  enterotypes_time_series_stability$branches 
+  
+  
+ggraph(graph) +
+  geom_edge_diagonal(aes(edge_width = p)) + 
+  geom_node_label()
+  
+  
+
+```
+
+
+```{r}
+```
+
