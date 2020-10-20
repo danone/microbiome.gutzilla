@@ -23,8 +23,11 @@ devtools::load_all(reset = FALSE)
 
 enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
 
-metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE) %>% mutate_all(na_if,"")
 
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "agp")
+
+shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
 
 ```
 
@@ -645,15 +648,15 @@ library(ggraph)
 #igraph::graph.data.frame(enterotypes_time_series_switch)
 graph <- igraph::graph_from_data_frame(enterotypes_time_series_switch)
 
-igraph::E(graph)
+V(graph)
 
-igraph::V(graph)$stability <-  enterotypes_time_series_stability$p         
-igraph::V(graph)$branches <-  enterotypes_time_series_stability$branches 
-  
+V(graph)$stability <- enterotypes_time_series_stability$stability         
+V(graph)$branches <-  enterotypes_time_series_stability$branches 
+V(graph)$partition_names <-   enterotypes_time_series_stability$Enterotypes_id
   
 ggraph(graph) +
-  geom_edge_diagonal(aes(edge_width = p)) + 
-  geom_node_label()
+  geom_edge_diagonal(aes(edge_width = p),alpha=0.2, arrow=arrow(angle = 30, length = unit(0.25, "inches"))) + 
+  geom_node_label(aes(label=partition_names, fill=branches, size=stability))
   
   
 
