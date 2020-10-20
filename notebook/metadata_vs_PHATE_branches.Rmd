@@ -343,7 +343,740 @@ filter(Enterotypes_id %in% c(12,1,5,9)) %>%
 
 ```
 
+### disease
+
+```{r}
+
+health_metadata = c("BMI_CAT",
+"ANTIBIOTIC_HISTORY" ,
+"ALZHEIMERS",
+"AUTOIMMUNE",
+"CANCER",
+"DIABETES",
+"IBD",
+"IBS",
+"KIDNEY_DISEASE",
+"ACID_REFLUX",
+"ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF",
+"CARDIOVASCULAR_DISEASE",
+"CDIFF",
+"DEPRESSION_BIPOLAR_SCHIZOPHRENIA",
+"EPILEPSY_OR_SEIZURE_DISORDER",
+"FUNGAL_OVERGROWTH",
+"GLUTEN",
+"LACTOSE",
+"LIVER_DISEASE",
+"LUNG_DISEASE",
+"MENTAL_ILLNESS",
+"MIGRAINE",
+"PKU",
+"SIBO",
+"THYROID")
+
+metadata[,health_metadata] %>%
+  apply(2,table)
 
 
 
+metadata %>%
+  select(SAMPLE_NAME, all_of(health_metadata)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  group_by(Enterotypes_id,variable) %>%
+  mutate(n=n()) %>%
+  group_by(Enterotypes_id,variable,value,n) %>%
+  summarise(n_value = n()) %>%
+  mutate(prop=n_value/(n+1)) %>% 
+  ungroup() %>%
+  #arrange(prop) %>%
+  #filter(value=="Obese") %>%
+  group_by(variable,value) %>%
+  arrange(prop) %>%
+  #mutate(et_rank = order(prop))
+  mutate(rank=row_number()) %>%
+  
+  filter(value %in% c("Obese",
+                      "I have not taken antibiotics in the past year.",
+                      "I do not have this condition",
+                      "No")) %>%
+  
+  arrange(variable,value,prop) %>%
+  reshape2::dcast(variable+value ~ as.character(Enterotypes_id), value.var = "prop") %>%
+  select(-2) %>%
+  tibble::column_to_rownames("variable") %>%
+  t() %>% #t() %>% heatmap()
+  as.data.frame() -> enterotypes_diseases_prop_df
+
+
+enterotypes_diseases_prop_df %>%
+  ade4::dudi.pca(scannf=F, nf=2) %>% #.$eig %>% (function(x){x/sum(x)})
+  .$co %>% magrittr::multiply_by(-1) %>% ade4::s.label()
+  
+  
+
+
+```
+
+## diet
+
+
+
+```{r}
+
+diet_variables =
+  c("TYPES_OF_PLANTS",
+  "DIET_TYPE",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "SPECIALIZED_DIET_FODMAP",
+  "SPECIALIZED_DIET_EXCLUDE_DAIRY",
+  "SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+  "SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+  "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET",
+  "OLIVE_OIL")
+
+
+
+metadata[,diet_variables] %>%
+  apply(2,table)
+
+
+
+metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  group_by(Enterotypes_id,variable) %>%
+  summarise(mean = mean(value)) %>%
+  reshape2::dcast(variable ~ as.character(Enterotypes_id), value.var = "mean") %>%
+  tibble::column_to_rownames("variable") %>%
+  t() %>% #t() %>% heatmap()
+  as.data.frame() -> enterotypes_diet_mean_df
+
+enterotypes_diet_mean_df %>%
+  ade4::dudi.pca(scannf=F, nf=2) %>%  #.$eig %>% (function(x){x/sum(x)})
+  #ade4::scatter()
+  #.$co %>% ade4::s.label()
+  .$li %>% ade4::s.label()
+  
+
+
+
+```
+
+
+```{r fig.height=8, fig.width=10}
+
+enterotypes_diseases_prop_df %>%
+  ade4::dudi.pca(scannf=F, nf=2) -> enterotypes_diseases_prop_pca
+
+enterotypes_diet_mean_df %>%
+  ade4::dudi.pca(scannf=F, nf=2) -> enterotypes_diet_mean_pca
+ 
+cowplot::plot_grid(
+enterotypes_diseases_prop_pca %>%
+ .$li %>%
+  tibble::rownames_to_column("Partitions") %>%
+  ggplot() + 
+  geom_label(aes(x=Axis1,y=Axis2,label=Partitions)) +
+  xlab(paste0("Axis1 ", enterotypes_diseases_prop_pca$eig %>% (function(x){x*100/sum(x)}) %>% .[1] %>% round(1),"%")) +
+  ylab(paste0("Axis2 ", enterotypes_diseases_prop_pca$eig %>% (function(x){x*100/sum(x)}) %>% .[2] %>% round(1),"%")) + theme_classic(),
+
+enterotypes_diseases_prop_pca %>%
+ .$co %>%
+  magrittr::multiply_by(-1) %>%
+  tibble::rownames_to_column("Health") %>%
+  mutate(Health=ifelse(Health=="BMI_CAT","NON-OBESE",Health)) %>%
+  mutate(Health=ifelse(Health=="ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF","NON-FOOD-ALLERGY",Health)) %>%
+  reshape2::melt(id.vars=c("Health")) %>%
+  ggplot() + geom_tile(aes(x=variable,y=Health,fill=value)) +
+  scale_fill_gradient2(),
+
+enterotypes_diet_mean_pca %>%
+ .$li %>%
+  tibble::rownames_to_column("Partitions") %>%
+  ggplot() + 
+  geom_label(aes(x=Axis1,y=Axis2,label=Partitions)) +
+  xlab(paste0("Axis1 ", enterotypes_diet_mean_pca$eig %>% (function(x){x*100/sum(x)}) %>% .[1] %>% round(1),"%")) +
+  ylab(paste0("Axis2 ", enterotypes_diet_mean_pca$eig %>% (function(x){x*100/sum(x)}) %>% .[2] %>% round(1),"%")) + theme_classic(),
+
+enterotypes_diet_mean_pca %>%
+ .$co %>%
+  tibble::rownames_to_column("Diet") %>%
+  reshape2::melt(id.vars=c("Diet")) %>%
+  ggplot() + geom_tile(aes(x=variable,y=Diet,fill=value)) +
+  scale_fill_gradient2(), nrow=2, rel_widths = c(2,2.1))
+
+
+```
+
+### supervised comparison based on time series recovery path
+
+- within Bacteroides branch 11 -> 6 -> 2
+- within Prevotella branch 18 -> 14 -> 7
+
+```{r fig.height=5, fig.width=8}
+
+
+metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  filter(Enterotypes_id %in% c("11","15")) %>%
+  filter(variable %in% c("TYPES_OF_PLANTS",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")) %>%
+  group_by(variable) %>%
+  do(w = wilcox.test(value~Enterotypes_id%>%as.character(), data=., paired=FALSE)) %>% 
+       summarise(variable, Wilcox = w$p.value) %>%
+  mutate(Wilcox_fdr = Wilcox %>% p.adjust(method="fdr") %>% round(3)) %>%
+  arrange(Wilcox_fdr)
+
+
+metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  filter(Enterotypes_id %in% c("11","6")) %>%
+  filter(variable %in% c("TYPES_OF_PLANTS",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")) %>%
+  group_by(variable) %>%
+  do(w = wilcox.test(value~Enterotypes_id%>%as.character(), data=., paired=FALSE)) %>% 
+       summarise(variable, Wilcox = w$p.value) %>%
+  mutate(Wilcox_fdr = Wilcox %>% p.adjust(method="fdr") %>% round(3)) %>%
+  arrange(Wilcox_fdr)
+  
+metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  filter(Enterotypes_id %in% c("2","1")) %>%
+  filter(variable %in% c("TYPES_OF_PLANTS",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")) %>%
+  group_by(variable) %>%
+  do(w = wilcox.test(value~Enterotypes_id%>%as.character(), data=., paired=FALSE)) %>% 
+       summarise(variable, Wilcox = w$p.value) %>%
+  mutate(Wilcox_fdr = Wilcox %>% p.adjust(method="fdr") %>% round(3)) %>%
+  arrange(Wilcox_fdr)
+
+metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  filter(Enterotypes_id %in% c("1","5")) %>%
+  filter(variable %in% c("TYPES_OF_PLANTS",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")) %>%
+  group_by(variable) %>%
+  do(w = wilcox.test(value~Enterotypes_id%>%as.character(), data=., paired=FALSE)) %>% 
+       summarise(variable, Wilcox = w$p.value) %>%
+  mutate(Wilcox_fdr = Wilcox %>% p.adjust(method="fdr") %>% round(3)) %>%
+  arrange(Wilcox_fdr)
+
+  metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  filter(Enterotypes_id %in% c("11","6","2", "1")) %>%
+  #mutate(Enterotypes_id = Enterotypes_id %>%  factor(levels=c("11","6","2"))) %>%  
+  filter(variable %in% c("TYPES_OF_PLANTS",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")) %>%
+  ggplot() + geom_bar(aes(x=variable,fill=value%>%as.character()), position="fill") + 
+    facet_wrap(~Enterotypes_id%>%factor(levels=c("11","6","2","1")), scales = "free_x", ncol=4) + coord_flip() +
+    scale_fill_brewer()
+
+
+
+
+```
+
+```{r}
+
+
+metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  filter(Enterotypes_id %in% c("18","14")) %>%
+  filter(variable %in% c("TYPES_OF_PLANTS",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")) %>%
+  group_by(variable) %>%
+  do(w = wilcox.test(value~Enterotypes_id%>%as.character(), data=., paired=FALSE)) %>% 
+       summarise(variable, Wilcox = w$p.value) %>%
+  mutate(Wilcox_fdr = Wilcox %>% p.adjust(method="fdr") %>% round(3)) %>%
+  arrange(Wilcox_fdr)
+  
+metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  filter(Enterotypes_id %in% c("7","14")) %>%
+  filter(variable %in% c("TYPES_OF_PLANTS",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")) %>%
+  group_by(variable) %>%
+  do(w = wilcox.test(value~Enterotypes_id%>%as.character(), data=., paired=FALSE)) %>% 
+       summarise(variable, Wilcox = w$p.value) %>%
+  mutate(Wilcox_fdr = Wilcox %>% p.adjust(method="fdr") %>% round(3)) %>%
+  arrange(Wilcox_fdr)
+
+metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  filter(Enterotypes_id %in% c("7","5")) %>%
+  filter(variable %in% c("TYPES_OF_PLANTS",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")) %>%
+  group_by(variable) %>%
+  do(w = wilcox.test(value~Enterotypes_id%>%as.character(), data=., paired=FALSE)) %>% 
+       summarise(variable, Wilcox = w$p.value) %>%
+  mutate(Wilcox_fdr = Wilcox %>% p.adjust(method="fdr") %>% round(3)) %>%
+  arrange(Wilcox_fdr)
+
+
+
+  metadata %>%
+  select(SAMPLE_NAME, all_of(diet_variables)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  filter(Enterotypes_id %in% c("18","14","7", "5")) %>%
+  #mutate(Enterotypes_id = Enterotypes_id %>%  factor(levels=c("11","6","2"))) %>%  
+  filter(variable %in% c("TYPES_OF_PLANTS",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")) %>%
+  ggplot() + geom_bar(aes(x=variable,fill=value%>%as.character()), position="fill") + 
+    facet_wrap(~Enterotypes_id%>%factor(levels=c("18","14","7", "5")), scales = "free_x", ncol=4) + coord_flip() +
+    scale_fill_brewer()
+
+
+
+
+
+
+
+```
+
+
+### diet partitions vs branches
+```{r}
+
+dietDMM5_path = system.file("data-raw/diet_clusters","Food_Level2bKcal_DMM5_Clusters.csv",package="agp")
+
+diet_partition = read.csv2(dietDMM5_path)
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  #select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  #mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  #group_by(HOST_SUBJECT_ID) %>%
+  #mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  #filter(n>1) %>%
+  
+  #mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  #group_by(HOST_SUBJECT_ID) %>%
+  #arrange(HOST_SUBJECT_ID, days) %>%
+  #mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  filter(!(branches=="Akkermansia DMM types")) %>%
+  merge(diet_partition, by="SAMPLE_NAME") %>%
+  mutate(DMM5_clusters = case_when(DMM5_clusters == 1 ~ "P1 Soft Western",
+                                   DMM5_clusters == 2 ~ "P2 Flexitarian",
+                                   DMM5_clusters == 3 ~ "P3 Under Sp. Diet",
+                                   DMM5_clusters == 4 ~ "P4 Hard Western",
+                                   DMM5_clusters == 5 ~ "P5 Vegan")) %>%
+  xtabs(~branches+DMM5_clusters, data=.) %>% prop.table(1) %>% prop.table(2) %>%
+  reshape2::melt() %>%
+  ggplot() + 
+  geom_bar(aes(x=DMM5_clusters %>% factor(levels = c("P5 Vegan","P2 Flexitarian","P3 Under Sp. Diet","P1 Soft Western","P4 Hard Western")),y=value, fill=branches), stat="identity") +
+  xlab("diet partition ordered by healthyness") +
+  ylab("Partipants proportions") +
+  scale_y_continuous(labels=scales::percent) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+
+
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  #select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  #mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  #group_by(HOST_SUBJECT_ID) %>%
+  #mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  #filter(n>1) %>%
+  
+  #mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  #group_by(HOST_SUBJECT_ID) %>%
+  #arrange(HOST_SUBJECT_ID, days) %>%
+  #mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  filter(!(branches=="Akkermansia DMM types")) %>%
+  merge(diet_partition, by="SAMPLE_NAME") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  mutate(DMM5_clusters = case_when(DMM5_clusters == 1 ~ "P1 Soft Western",
+                                   DMM5_clusters == 2 ~ "P2 Flexitarian",
+                                   DMM5_clusters == 3 ~ "P3 Under Sp. Diet",
+                                   DMM5_clusters == 4 ~ "P4 Hard Western",
+                                   DMM5_clusters == 5 ~ "P5 Vegan")) %>%
+  ggplot() + geom_boxplot(aes(x=branches,y=shannon,fill=DMM5_clusters %>% factor(levels = c("P5 Vegan","P2 Flexitarian","P3 Under Sp. Diet","P1 Soft Western","P4 Hard Western")))) +
+  scale_fill_brewer("", type = "qual")
+
+
+
+```
 
