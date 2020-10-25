@@ -255,6 +255,8 @@ metadata %>%
 
 
 ```{r}
+
+
 metadata %>%
   filter(SAMPLE_TYPE == "Stool") %>%
   select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
@@ -296,6 +298,132 @@ metadata %>%
 
 
 ```
+## compute prevotella bacteroides ratio within days
+```{r}
+
+
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+genus %>% 
+  filter(taxa %in% c("k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides",
+                     "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella")) %>%
+  tibble::column_to_rownames("taxa") %>%
+  t() %>%
+  as.data.frame() -> TS_agp_genus_P_B
+
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME,days) -> host_sample_days
+
+
+host_sample_days %>%
+  merge(host_sample_days, by="HOST_SUBJECT_ID") %>%
+  filter(!(SAMPLE_NAME.x==SAMPLE_NAME.y)) %>%
+  filter(days.y>days.x) %>%
+  mutate(days_delta = days.y-days.x) %>%
+  filter(days_delta <= 60*60*24) -> host_sample_pairs_within_days
+
+
+
+
+
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME,Enterotypes_id,branches) -> host_sample_enterotypes_branches
+  
+  
+host_sample_pairs_within_days %>%
+  merge(host_sample_enterotypes_branches, by.x=c("HOST_SUBJECT_ID","SAMPLE_NAME.x"), by.y=c("HOST_SUBJECT_ID","SAMPLE_NAME")) %>%
+  merge(host_sample_enterotypes_branches, by.x=c("HOST_SUBJECT_ID","SAMPLE_NAME.y"), by.y=c("HOST_SUBJECT_ID","SAMPLE_NAME")) %>%
+  merge(TS_agp_genus_P_B, by.x="SAMPLE_NAME.x", by.y="row.names") %>%
+  merge(TS_agp_genus_P_B, by.x="SAMPLE_NAME.y", by.y="row.names") %>%
+  dplyr::rename(Bacteroides1 = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides.x",
+                Prevotella1  = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella.x",
+                Bacteroides2 = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides.y",
+                Prevotella2  = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella.y") %>%
+  mutate(PB_ratio_1 = log2((Prevotella1+1)/(Bacteroides1+1)), PB_ratio_2 = log2((Prevotella2+1)/(Bacteroides2+1))) %>%
+  mutate(delta = PB_ratio_2-PB_ratio_1) -> host_sample_enterotypes_branches_P_B_ratio
+
+host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  ggplot() + geom_bar(aes(x=paste(branches.x), fill=branches.y)) + coord_flip()
+
+
+
+host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  ggplot() + geom_boxplot(aes(y=delta, branches.x, fill=branches.y))
+
+
+
+host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  ggplot() + 
+  geom_point(aes(x=PB_ratio_1, y=PB_ratio_2, color=paste(branches.x,"->",branches.y), size=days_delta < 1*60*60)) +
+  geom_abline(slope=1,intercept = 0) +
+  geom_abline(slope=1,intercept = -2.5, linetype=2) +
+  geom_abline(slope=1,intercept = 2.5, linetype=2) +
+  xlab("P/B ratio 1st sample") + ylab("P/B ratio 2nd sample") +
+  scale_size_discrete("less than\n60 minutes") +
+  scale_colour_discrete("")
+  
+  
+  host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  filter(branches.x %in% "Prevotella DMM types") %>%
+    mutate(less_than_one_hour = days_delta < 1*60*60) %>%
+    xtabs(~branches.y + less_than_one_hour, data=.) #%>% chisq.test()
+    
+ 
+  host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  filter(branches.x %in% "Bacteroides DMM types") %>%
+    mutate(less_than_one_hour = days_delta < 1*60*60) %>%
+    xtabs(~branches.y + less_than_one_hour, data=.) #%>% chisq.test()
+  
+       
+
+```
+
 
 
 
@@ -654,8 +782,9 @@ V(graph)$stability <- enterotypes_time_series_stability$stability
 V(graph)$branches <-  enterotypes_time_series_stability$branches 
 V(graph)$partition_names <-   enterotypes_time_series_stability$Enterotypes_id
   
-ggraph(graph) +
-  geom_edge_diagonal(aes(edge_width = p),alpha=0.2, arrow=arrow(angle = 30, length = unit(0.25, "inches"))) + 
+ggraph(graph, weights=p, layout="stress") +
+  geom_edge_fan(aes(alpha = p), arrow=arrow(angle = 20, length = unit(4, "mm")), end_cap = circle(3, 'mm')) + 
+  #geom_node_point(aes(color=branches,size=stability*2)) +
   geom_node_label(aes(label=partition_names, fill=branches, size=stability))
   
   

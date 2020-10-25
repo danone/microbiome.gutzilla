@@ -1,0 +1,124 @@
+---
+title: "External Times Series Analysis"
+output: html_notebook
+---
+
+
+
+
+```{r}
+library(DirichletMultinomial)
+library(dplyr)
+library(ggplot2)
+devtools::load_all(reset = FALSE)
+
+
+```
+
+
+
+1) Load DMM models
+
+
+```{r}
+
+load("../fit_genus_bootstrap.rda")
+
+fit_genus_bootstrap[[1]][[1]][[14]]
+
+
+
+```
+
+
+
+
+
+2) import genus data
+
+```{r}
+
+
+TS_genus = qiime2R::read_qza(system.file("data-raw/extTimesSeries/genus.qza", package="agp"))$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+TS_genus %>%
+ summarise_at(-1, sum) %>%
+  t() %>% as.data.frame %>% 
+  ggplot() + geom_histogram(aes(x=V1)) + scale_x_log10()
+
+
+
+
+```
+
+4) classify into Partition and Branches
+failure: due to different 16S protocol
+
+```{r}
+
+genus_select = attr(fit_genus_bootstrap[[1]][[1]][[14]],"fit")$Estimate %>% rownames
+
+TS_genus %>%
+  #mutate_at(-1, (function(x){x/sum(x)})) %>%
+  filter(taxa %in% genus_select) %>%
+  tibble::column_to_rownames("taxa") -> genus_select
+
+
+TS_enterotypes_prediction = predict(fit_genus_bootstrap[[1]][[1]][[14]], t(genus_select), assign = TRUE)
+
+TS_enterotypes_prediction %>%  
+  #head(10) %>%
+reshape2::melt() %>%
+  group_by(Var1) %>%
+  filter(value==max(value)) %>%
+  dplyr::rename(`#SampleID`="Var1", Enterotypes_id="Var2") %>%
+  select(`#SampleID`,Enterotypes_id, value) -> TS_enterotypes_prediction_max
+
+TS_enterotypes_prediction_max %>%
+  ggplot() + geom_histogram(aes(x=value))
+
+TS_enterotypes_prediction_max$Enterotypes_id %>% table
+
+
+
+```
+
+
+
+5) check Prevotella/Bacteroides ratio stability within and between day
+
+
+```{r}
+
+TS_metadata = readr::read_csv(system.file("data-raw/extTimesSeries/qiita_studies_1015_11550_2202_2639_550_fecal_samplePairs_perDayDiff.csv", package="agp"))
+
+genus_select = attr(fit_genus_bootstrap[[1]][[1]][[14]],"fit")$Estimate %>% rownames
+
+TS_genus %>% 
+  filter(taxa %in% c("k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides",
+                     "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella")) %>%
+  tibble::column_to_rownames("taxa") %>%
+  t() %>%
+  as.data.frame() -> TS_genus_P_B
+
+
+TS_metadata %>%
+  merge(TS_genus_P_B, by.x="sample1", by.y="row.names") %>%
+  merge(TS_genus_P_B, by.x="sample2", by.y="row.names") %>%
+  dplyr::rename(Bacteroides1 = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides.x",
+                Prevotella1  = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella.x",
+                Bacteroides2 = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides.y",
+                Prevotella2  = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella.y") %>%
+  mutate(PB_ratio_1 = log2((Prevotella1+1)/(Bacteroides1+1)), PB_ratio_2 = log2((Prevotella2+1)/(Bacteroides2+1))) %>%
+  mutate(delta = PB_ratio_2-PB_ratio_1) %>%
+  filter(day_difference<2) %>%
+  ggplot() + geom_boxplot(aes(y=abs(delta),x=day_difference%>%as.character))
+
+
+
+```
+
+
+
+
+
