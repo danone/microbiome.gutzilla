@@ -1,0 +1,124 @@
+---
+title: "MOTUS microbiome partitioning"
+output: html_notebook
+---
+
+
+```{r}
+
+library(dplyr)
+devtools::load_all(reset=FALSE)
+
+
+
+```
+
+## import and merge motus table
+```{r}
+
+motus = readr::read_tsv(system.file("data-raw/motus/All_2481_at_least_500.motu.nr.out.20180307.tsv", package="agp"))
+
+load("../data-raw/motus/motus_count_full.rda")
+
+
+  
+
+
+
+```
+## metadata, habitat and time series
+
+```{r}
+
+library(readxl)
+sample_habitats <- read_excel("../data-raw/motus/41467_2019_8844_MOESM3_ESM.xlsx", 
+     sheet = "Supplementary Data 1", col_types = c("text", 
+         "numeric", "text", "text", "numeric", 
+         "skip", "skip", "skip", "skip", "skip", 
+         "skip", "skip", "skip", "skip", "skip", 
+         "skip", "skip"))
+
+wilmes_samples_times <- read_excel("../data-raw/motus/41564_2017_BFnmicrobiol2016180_MOESM169_ESM.xlsx", 
+     sheet = "b - samples", col_types = c("text", 
+         "date", "skip", "skip", "skip", "skip", 
+         "skip", "skip"))
+
+
+HMP_time_series <- read_excel("../data-raw/motus/41586_2013_BFnature11711_MOESM246_ESM.xls", 
+     sheet = "Table 12", col_types = c("text", 
+         "text", "numeric", "skip", "skip", 
+         "skip", "skip", "skip", "skip"), 
+     skip = 1)
+
+
+
+```
+
+
+
+## merge motus table
+
+aggregate at genus level using both 2.0 and 2.5 motus database.
+
+```{r}
+
+sample_habitats %>%
+  filter(`HMP body site` == "ST") %>%
+  pull(1) -> stool_motus_samples
+
+motus %>%
+  reshape2::melt(id.vars="consensus_taxonomy") %>%
+  filter(variable %in% stool_motus_samples) %>%
+  filter(value>0) -> motus_stool_samples_melt
+
+motus_stool_samples_melt %>%
+  mutate(consensus_taxonomy = ifelse(consensus_taxonomy=="-1","-1 [-1]",consensus_taxonomy)) %>%
+  tidyr::separate(consensus_taxonomy, sep="\\[", into=c("Taxonomy","mOTU")) %>%
+  mutate(mOTU = mOTU %>% gsub("]","",.)) %>%
+  dplyr::rename(sample_id=variable, taxonomy=Taxonomy) %>%
+  select(mOTU,sample_id,value, taxonomy) %>%
+  rbind(motus_count_full %>% select(mOTU,sample_id,value, taxonomy)) -> motus_full_table
+  
+  
+rbind(readr::read_tsv("../data-raw/motus/db_mOTU_taxonomy_meta-mOTUs.tsv")  %>%
+  rename(mOTU_id=1,mOTU_species=mOTU) ,
+
+readr::read_tsv("../data-raw/motus/db_mOTU_taxonomy_ref-mOTUs.tsv") %>%
+  select(-1) %>%
+  rename(mOTU_id=1,mOTU_species=mOTU),
+  readr::read_tsv("../data-raw/motus/prok-refdb-v11.0.0_specI-v2_taxonomy_v1.map") %>%
+  select(-1) %>%
+  rename(mOTU_id=1,mOTU_species=mOTU)) %>%
+  
+  rbind(
+    tribble(
+  ~mOTU_id, ~kingdom, ~phylum, ~class, ~order, ~family, ~genus, ~mOTU_species,
+  "-1","-1","-1","-1","-1","-1","-1","-1"
+) 
+ 
+    
+  ) -> motu_taxonomy
+  
+motu_taxonomy %>%
+  merge(motus_full_table,by.x="mOTU_id", by.y="mOTU",all = FALSE) %>% 
+  mutate(sample_id=sample_id%>%as.character)  -> motus_count_taxa
+
+
+motus_count_taxa %>% 
+  arrange(desc(value)) %>%
+  group_by(sample_id,genus) %>%
+  summarise(value=sum(value)) %>% #pull(sample_id) %>% unique %>% length
+  #mutate(genus=genus%>%as.character,sample_id=sample_id%>%as.character ) %>% filter(genus!="-1") %>%
+  reshape2::dcast(genus~sample_id, value.var="value", fill=0) %>%
+  arrange(desc(`10317_000014942.motus`)) -> motus_genus_count
+  
+
+
+  
+```
+
+
+
+
+
+
