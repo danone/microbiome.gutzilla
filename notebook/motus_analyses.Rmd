@@ -114,11 +114,44 @@ motus_count_taxa %>%
   
 
 
+motus_genus_count %>%
+  mutate_at(-1,function(x){x/sum(x)}) %>%
+  filter(genus!= "-1") %>%
+  tibble::column_to_rownames("genus") %>%
+  as.matrix %>% 
+  apply(1,sum) %>% 
+  sort %>% rev %>% head(30) -> top_genus_mass_motus
+
+
+
+motus_genus_count %>%
+  tibble::column_to_rownames("genus") %>%
+  apply(1,sum) %>% sum()
+
+motus_genus_count %>%
+  filter(genus %in% names(top_genus_mass_motus)) %>%
+  tibble::column_to_rownames("genus") %>%
+  apply(1,sum) %>% sum()
+  
+
+
+motus_genus_count %>%
+  filter(genus %in% names(top_genus_mass_motus)) %>%
+  tibble::column_to_rownames("genus") -> genus_motus_count_dominant
+
+
   
 ```
 
 
 
+```{r}
+
+source("enterotyping_motus.R")
+save(fit_genus_list_motus, file="fit_genus_list_motus.rda")
+
+
+```
 
 
 
