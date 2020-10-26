@@ -56,5 +56,5 @@ enterotypes_motus =
 
 # write the output table
 
-write.table(enterotypes_curated, file=output, row.names=TRUE, sep="\t")
+write.table(enterotypes_motus, file=output, row.names=TRUE, sep="\t")
 

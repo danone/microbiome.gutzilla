@@ -112,7 +112,7 @@ motus_count_taxa %>%
   reshape2::dcast(genus~sample_id, value.var="value", fill=0) %>%
   arrange(desc(`10317_000014942.motus`)) -> motus_genus_count
   
-
+write.csv2(motus_genus_count, file = "motus_genus_count.csv")
 
 motus_genus_count %>%
   mutate_at(-1,function(x){x/sum(x)}) %>%
@@ -139,8 +139,18 @@ motus_genus_count %>%
   filter(genus %in% names(top_genus_mass_motus)) %>%
   tibble::column_to_rownames("genus") -> genus_motus_count_dominant
 
+genus_motus_count_dominant %>% apply(2,sum) -> sample_count
 
-  
+names(which(sample_count == 0))
+ 
+genus_motus_count_dominant %>%
+  select(-all_of(names(which(sample_count == 0)))) -> genus_motus_count_dominant
+ 
+```
+```{r}
+
+alpha_shannon_motus <-vegan::diversity(vegan::rrarefy(motus_genus_count[,names(which(sample_count > 1000))], sample = 1000), MARGIN = 2)
+
 ```
 
 
@@ -154,4 +164,180 @@ save(fit_genus_list_motus, file="fit_genus_list_motus.rda")
 ```
 
 
+
+```{r}
+names(lplc) = as.character(1:5)
+as_tibble(lplc)  %>% tibble::rowid_to_column("k") %>% reshape2::melt(id.vars="k") %>% ggplot() + geom_line(aes(x=k,y=value,group=variable))
+```
+
+
+```{r fig.height=6, fig.width=12}
+
+heatmapdmn(t(genus_motus_count_dominant),fit_genus_list_motus[[1]][[1]],fit_genus_list_motus[[1]][[best_genus_lplc]])
+
+###################################################
+### code chunk number 11: posterior-mean-diff
+###################################################
+p0 <- fitted(fit_genus_list_motus[[1]][[1]], scale=TRUE)     # scale by theta
+pbest <- fitted(fit_genus_list_motus[[1]][[best_genus_lplc]], scale=TRUE)
+colnames(pbest) <- paste("MG", 1:best_genus_lplc, sep="")
+(meandiff <- colSums(abs(pbest - as.vector(p0))))
+sum(meandiff)
+
+
+###################################################
+### code chunk number 12: table-1
+###################################################
+diff <- rowSums(abs(pbest - as.vector(p0)))
+o <- order(diff, decreasing=TRUE)
+cdiff <- cumsum(diff[o]) / sum(diff)
+df_motus <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 30)
+df_motus %>% as.data.frame()
+
+#df_curated = df %>% as.data.frame()
+
+df_motus %>% as.data.frame() %>%
+  tibble::rownames_to_column("taxa") %>%
+  reshape2::melt(id.vars="taxa") %>%
+  filter(!variable %in% c("Mean","diff","cdiff")) %>%
+  #group_by(taxa) %>%
+  #mutate(total = sum(value)) %>%
+  #mutate(value=value/total) %>%
+  ggplot() + geom_tile(aes(x=variable,y=taxa,fill=value)) + scale_fill_viridis_c()
+
+```
+
+
+```{r fig.height=5, fig.width=12}
+
+df_motus %>%
+  as.data.frame %>%
+  select(-diff,-cdiff,-Mean) %>%
+  mutate_at(1:12,~log10(.)) %>%
+  t %>%
+  as.data.frame %>%
+  ade4::dudi.pca(scannf = F,nf=3) %>% .$li %>% ade4::s.label()
+
+df_motus %>%
+  as.data.frame %>%
+  select(-diff,-cdiff,-Mean) %>%
+  tibble::rownames_to_column("taxa") %>%
+  as_tibble %>%
+  .[c(1,2,6,9,28),] %>%
+  reshape2::melt(id.vars="taxa") %>%
+  group_by(variable) %>%
+  mutate(ymax=cumsum(value)) %>%
+  mutate(ymin=c(0, head(ymax, n=-1))) %>%
+  #ggplot() + geom_bar(aes(y=value,x=variable,fill=taxa),stat="identity") 
+  ggplot(aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=taxa %>% strsplit(x=.,split=" ") %>% sapply(function(x)x[2])  )) + 
+  geom_rect() +      
+  coord_polar(theta="y") + 
+  facet_wrap(~variable) + 
+  xlim(c(2, 4)) + theme_void() +
+  scale_fill_brewer("",type="qual")
+
+
+
+```
+
+```{r}
+
+
+enterotypes_motus %>%
+  tibble::rownames_to_column("sample_name") %>%
+  mutate(sample_name=sample_name %>% gsub(".motus","",.) %>% gsub("_",".",.)) %>%
+  merge(enterotypes, by="sample_name") %>%
+  xtabs(~Enterotypes_id.x+Enterotypes_id.y, data=.)
+
+enterotypes_motus %>%
+  merge(alpha_shannon_motus %>% as.matrix %>% as.data.frame, by="row.names") %>%
+  dplyr::rename(shannon=V1) %>%
+  ggplot() + geom_boxplot(aes(x=Enterotypes_id%>% as.character, y=shannon))
+
+
+
+```
+```{r}
+
+genus_motus_count_dominant %>%
+  tibble::rownames_to_column("Row.names") %>%
+  #select(1:10) %>%
+  mutate_at(-1, ~./sum(.)) -> genus_prop_motus
+
+#genus_L1 = phateR::library.size.normalize(genus %>% t)
+
+genus_phate_motus = 
+  genus_prop_motus %>%
+  tibble::column_to_rownames("Row.names") %>%
+  t() %>%
+  #as.data.frame() %>%
+  #merge(enterotypes %>% filter(set != "outliers", value>0.80) %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% head
+  
+  phateR::phate(gamma=0, t=60, seed=666)
+
+
+
+
+
+```
+
+```{r}
+
+genus_phate_motus$embedding %>%
+  as.data.frame() %>%
+  merge(alpha_shannon_motus %>% as.matrix %>% as.data.frame, by="row.names") %>%
+  dplyr::rename(shannon=V1) %>%
+  #merge(.,GMHI, by="row.names") %>%
+  ggplot() + geom_point(aes(x=-PHATE1, y=PHATE2, col=shannon)) + scale_color_viridis_c()
+
+
+genus_motus_count_dominant %>% 
+  t %>% as.data.frame %>%
+  select(`816 Bacteroides`,`838 Prevotella`) %>%
+  merge(genus_phate_motus$embedding %>%
+  as.data.frame(), by="row.names" ) %>%
+  tibble::column_to_rownames("Row.names") %>%
+  merge(alpha_shannon_motus %>% as.matrix %>% as.data.frame, by="row.names") %>%
+  dplyr::rename(shannon=V1) %>%
+  mutate(PB = `838 Prevotella`/`816 Bacteroides`) %>% #arrange(desc(PB))
+  #merge(.,GMHI, by="row.names") %>%
+  ggplot() + geom_point(aes(x=-PHATE1, y=PHATE2, col=log2((`838 Prevotella`+1)/(`816 Bacteroides`+1)))) + scale_color_viridis_c("P/B ratio")
+
+
+
+```
+
+
+```{r}
+
+df_motus %>%
+  as.data.frame %>%
+  select(-diff,-cdiff,-Mean) %>%
+  as.matrix() %>%
+  heatmap()
+
+genus_phate_motus$embedding %>%
+  merge(enterotypes_motus, by="row.names") %>%
+  group_by(Enterotypes_id) %>%
+  select(PHATE1,PHATE2)  %>%
+  summarise(PHATE1=mean(PHATE1),PHATE2=mean(PHATE2)) -> enterotypes_phate_motus_centroid
+
+
+genus_phate_motus$embedding %>%
+  merge(enterotypes_motus, by="row.names") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(16,12,11), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(5,1,13,6,9,15,8,7), "Bacteroides DMM types",branch)) %>%
+  #filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
+  ggplot() + geom_point(aes(x=-PHATE1, y=PHATE2, col=branch), size=1, alpha=0.5) +
+  scale_color_brewer("main taxa\nDMM types",type="qual") + theme_classic() +
+  ggrepel::geom_label_repel(data = enterotypes_phate_motus_centroid, aes(x=-PHATE1, y=PHATE2, label=Enterotypes_id))
+
+
+
+
+
+
+
+```
 
