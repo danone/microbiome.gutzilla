@@ -325,7 +325,7 @@ metadata %>%
   filter(n>1) %>%
   
   mutate(days=COLLECTION_TIMESTAMP - min_date) %>%
-  select(HOST_SUBJECT_ID,SAMPLE_NAME,days) -> host_sample_days
+  select(HOST_SUBJECT_ID,SAMPLE_NAME,days, COLLECTION_TIMESTAMP) -> host_sample_days
 
 
 host_sample_days %>%
@@ -363,12 +363,12 @@ metadata %>%
                               Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
                               TRUE ~ "outliers")
          ) %>%
-  select(HOST_SUBJECT_ID,SAMPLE_NAME,Enterotypes_id,branches) -> host_sample_enterotypes_branches
+  select(HOST_SUBJECT_ID,SAMPLE_NAME,Enterotypes_id,branches,COLLECTION_TIMESTAMP) -> host_sample_enterotypes_branches
   
   
 host_sample_pairs_within_days %>%
-  merge(host_sample_enterotypes_branches, by.x=c("HOST_SUBJECT_ID","SAMPLE_NAME.x"), by.y=c("HOST_SUBJECT_ID","SAMPLE_NAME")) %>%
-  merge(host_sample_enterotypes_branches, by.x=c("HOST_SUBJECT_ID","SAMPLE_NAME.y"), by.y=c("HOST_SUBJECT_ID","SAMPLE_NAME")) %>%
+  merge(host_sample_enterotypes_branches, by.x=c("HOST_SUBJECT_ID","SAMPLE_NAME.x", "COLLECTION_TIMESTAMP.x"), by.y=c("HOST_SUBJECT_ID","SAMPLE_NAME","COLLECTION_TIMESTAMP")) %>%
+  merge(host_sample_enterotypes_branches, by.x=c("HOST_SUBJECT_ID","SAMPLE_NAME.y", "COLLECTION_TIMESTAMP.y"), by.y=c("HOST_SUBJECT_ID","SAMPLE_NAME","COLLECTION_TIMESTAMP")) %>%
   merge(TS_agp_genus_P_B, by.x="SAMPLE_NAME.x", by.y="row.names") %>%
   merge(TS_agp_genus_P_B, by.x="SAMPLE_NAME.y", by.y="row.names") %>%
   dplyr::rename(Bacteroides1 = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides.x",
@@ -424,6 +424,82 @@ host_sample_enterotypes_branches_P_B_ratio %>%
 
 ```
 
+check stool collet daily time
+
+```{r}
+
+
+host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  ggplot() + 
+  geom_point(aes(x=PB_ratio_1, y=PB_ratio_2, color=paste(branches.x,"->",branches.y), size=days_delta < 1*60*60)) +
+  geom_abline(slope=1,intercept = 0) +
+  geom_abline(slope=1,intercept = -2.5, linetype=2) +
+  geom_abline(slope=1,intercept = 2.5, linetype=2) +
+  xlab("P/B ratio 1st sample") + ylab("P/B ratio 2nd sample") +
+  scale_size_discrete("less than\n60 minutes") +
+  scale_colour_discrete("")
+
+host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  mutate(hours.x=COLLECTION_TIMESTAMP.x %>% lubridate::hour(), hours.y=COLLECTION_TIMESTAMP.y %>% lubridate::hour()) %>%
+  mutate(daytime = ifelse(hours.x < 12 & hours.y < 12, "both morning", ifelse(hours.x >= 12 & hours.y >= 12, "both afternoon", "no"))) %>%
+  ggplot() + 
+  geom_point(aes(x=PB_ratio_1, y=PB_ratio_2, color=daytime)) +
+  geom_abline(slope=1,intercept = 0) +
+  geom_abline(slope=1,intercept = -2.5, linetype=2) +
+  geom_abline(slope=1,intercept = 2.5, linetype=2) +
+  xlab("P/B ratio 1st sample") + ylab("P/B ratio 2nd sample") +
+  scale_size_discrete("less than\n60 minutes") +
+  scale_colour_discrete("")
+ 
+
+
+
+
+host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  mutate(hours.x=COLLECTION_TIMESTAMP.x %>% lubridate::hour(), hours.y=COLLECTION_TIMESTAMP.y %>% lubridate::hour()) %>%
+  mutate(daytime = ifelse(hours.x < 12 & hours.y < 12, "both morning", ifelse(hours.x >= 12 & hours.y >= 12, "both afternoon", "no"))) %>%
+  filter(branches.x=="Prevotella DMM types"|branches.y=="Prevotella DMM types") %>%
+  ggplot() +
+  geom_boxplot(aes(fill=paste(branches.x,"->",branches.y),y=(PB_ratio_1+PB_ratio_2)/2,x=daytime)) +
+  coord_flip()
+
+
+host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  mutate(hours.x=COLLECTION_TIMESTAMP.x %>% lubridate::hour(), hours.y=COLLECTION_TIMESTAMP.y %>% lubridate::hour()) %>%
+  mutate(daytime = ifelse(hours.x < 12 & hours.y < 12, "both morning", ifelse(hours.x >= 12 & hours.y >= 12, "both afternoon", "no"))) %>%
+  filter(branches.x=="Prevotella DMM types"|branches.y=="Prevotella DMM types") %>%
+  ggplot() +
+  geom_bar(aes(x=paste(branches.x,"->",branches.y), fill=daytime), position="fill" ) + xlab("") + coord_flip() 
+
+host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  mutate(hours.x=COLLECTION_TIMESTAMP.x %>% lubridate::hour(), hours.y=COLLECTION_TIMESTAMP.y %>% lubridate::hour()) %>%
+  mutate(daytime = ifelse(hours.x < 12 & hours.y < 12, "both", ifelse(hours.x >= 12 & hours.y >= 12, "both", "no"))) %>%
+  filter(branches.x=="Prevotella DMM types"|branches.y=="Prevotella DMM types") %>%
+  ggplot() +
+  geom_bar(aes(x=paste(branches.x,"->",branches.y), fill=daytime), position="fill" ) + xlab("") + coord_flip()
+
+
+host_sample_enterotypes_branches_P_B_ratio %>%
+  filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
+         branches.y %in% c("Bacteroides DMM types","Prevotella DMM types")) %>%
+  mutate(hours.x=COLLECTION_TIMESTAMP.x %>% lubridate::hour(), hours.y=COLLECTION_TIMESTAMP.y %>% lubridate::hour()) %>%
+  mutate(daytime = ifelse(hours.x < 12 & hours.y < 12, "both", ifelse(hours.x >= 12 & hours.y >= 12, "both", "no"))) %>%
+  filter(branches.x=="Prevotella DMM types"|branches.y=="Prevotella DMM types") %>%
+  xtabs(~ paste(branches.x,"->",branches.y) + daytime, data=.) %>%
+  chisq.test()
+
+
+```
 
 
 
