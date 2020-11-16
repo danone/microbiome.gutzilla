@@ -160,7 +160,14 @@ metadata %>%
                             `Yes` = 1,
                             `No` = 0)) %>%
   merge(bif_df, by="SAMPLE_NAME") %>%
-  
+  tidyr::nest(data = -variable) %>% 
+  mutate(
+    test = purrr::map(data, ~ cor.test(.$Bifidobacterium, .$value, method="spearman")), # S3 list-col
+    tidied = purrr::map(test, broom::tidy)
+  ) %>% 
+  tidyr::unnest(tidied) %>%
+  select(variable,estimate,p.value) %>%
+  arrange(p.value)
 
 
 
@@ -212,11 +219,153 @@ metadata %>%
   select(-value, -set) %>%
   reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
   na.omit() %>%
-  mutate(value=ifelse(value=="false","No",value))
+  mutate(value = ifelse(value=="false","No",value)) %>%
+  mutate(value = value %>% recode(`Diagnosed by a medical professional (doctor, physician assistant)` = 1,
+                            `I do not have this condition` = 0,
+                            `Diagnosed by an alternative medicine practitioner` = 2,
+                            `I do not eat gluten because it makes me feel bad` = 1,
+                            `I have not taken antibiotics in the past year.` = 0,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `I was diagnosed with celiac disease` = 1,
+                            `I was diagnosed with gluten allergy (anti-gluten IgG), but not celiac disease` = 1,
+                            `Self-diagnosed` = 2,
+                            `Obese` = 1,
+                            `Normal` = 0,
+                            `Yes` = 1,
+                            `No` = 0,
+                            `true` = 1,
+                            `Overweight` = 0,
+                            `Underweight` = 0,
+                            `Week` = 1,
+                            `Year` = 0.25,
+                            `Month` = 0.75,
+                            `6 months` = 0.5)) %>%
+  filter(value!=2) %>%
+  merge(bif_df, by="SAMPLE_NAME") %>%
+  tidyr::nest(data = -variable) %>% 
+  mutate(
+    test = purrr::map(data, ~ cor.test(.$Bifidobacterium, .$value, method="spearman")), # S3 list-col
+    tidied = purrr::map(test, broom::tidy)
+  ) %>% 
+  tidyr::unnest(tidied) %>%
+  select(variable,estimate,p.value) %>%
+  arrange(p.value)
+
+
+
+
+```
+
+### per age
+```{r warning=FALSE}
+
+
+metadata %>%
+  #filter(AGE_YEARS >= 18) %>%
+  select(SAMPLE_NAME, all_of(diet_variables), AGE_CAT) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  mutate(DIET_TYPE=ifelse(DIET_TYPE=="Vegan","Yes","No")) %>%
+  dplyr::rename(SPECIALIZED_DIET_EXCLUDE_ANIMAL = DIET_TYPE) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id","AGE_CAT")) %>%
+  na.omit() %>%
+  mutate(value=ifelse(value=="false","No",value)) %>%
+  mutate(value=ifelse(value=="true","Yes",value)) %>%
+  mutate(value = value %>% recode(`Daily` = 1,
+                            `Never` = 0,
+                            `Occasionally (1-2 times/week)` = 0.5,
+                            `Rarely (a few times/month)` = 0.25,
+                            `Rarely (less than once/week)` = 0.25,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `Less than 5` = 0,
+                            `6 to 10` = 0.25,
+                            `11 to 20` = 0.5,
+                            `21 to 30` = 0.75,
+                            `More than 30` = 1,
+                            `Yes` = 1,
+                            `No` = 0)) %>%
+  merge(bif_df, by="SAMPLE_NAME") %>%
+  filter(AGE_CAT != "baby") %>%
+  tidyr::nest(data = -c(variable, AGE_CAT)) %>% 
+  mutate(
+    test = purrr::map(data, ~ cor.test(.$Bifidobacterium, .$value, method="spearman")), # S3 list-col
+    tidied = purrr::map(test, broom::tidy),
+    n= purrr::map(data, nrow)
+  ) %>% 
+  tidyr::unnest(tidied,n) %>%
+  select(AGE_CAT,variable,estimate,p.value) %>%
+  arrange(p.value) -> correlation_bifidobacterium_diet_per_age
+
+
+
+
+```
+
+```{r warning=FALSE}
+
+metadata %>%
+  select(SAMPLE_NAME, all_of(health_metadata), AGE_CAT) %>%
+  dplyr::rename(FOOD_ALLERGY = ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id","AGE_CAT")) %>%
+  na.omit() %>%
+  mutate(value = ifelse(value=="false","No",value)) %>%
+  mutate(value = value %>% recode(`Diagnosed by a medical professional (doctor, physician assistant)` = 1,
+                            `I do not have this condition` = 0,
+                            `Diagnosed by an alternative medicine practitioner` = 2,
+                            `I do not eat gluten because it makes me feel bad` = 1,
+                            `I have not taken antibiotics in the past year.` = 0,
+                            `Regularly (3-5 times/week)` = 0.75,
+                            `I was diagnosed with celiac disease` = 1,
+                            `I was diagnosed with gluten allergy (anti-gluten IgG), but not celiac disease` = 1,
+                            `Self-diagnosed` = 2,
+                            `Obese` = 1,
+                            `Normal` = 0,
+                            `Yes` = 1,
+                            `No` = 0,
+                            `true` = 1,
+                            `Overweight` = 0,
+                            `Underweight` = 0,
+                            `Week` = 1,
+                            `Year` = 0.25,
+                            `Month` = 0.75,
+                            `6 months` = 0.5)) %>%
+  filter(value!=2) %>%
+  merge(bif_df, by="SAMPLE_NAME") %>%
+  filter(AGE_CAT != "baby") %>%
+  tidyr::nest(data = -c(variable,AGE_CAT)) %>% 
+  mutate(
+    test = purrr::map(data, ~ cor.test(.$Bifidobacterium, .$value, method="spearman")), # S3 list-col
+    tidied = purrr::map(test, broom::tidy),
+    n= purrr::map(data, nrow)
+  ) %>% 
+  tidyr::unnest(tidied,n) %>%
+  select(AGE_CAT,variable,estimate,p.value,n) %>%
+  mutate(estimate = ifelse(variable=="FOOD_ALLERGY",estimate*-1,estimate)) %>%
+  arrange(p.value) -> correlation_bifidobacterium_health_per_age
+
+
+
 
 
 ```
 
 
+## data viz
+```{r fig.height=10, fig.width=10}
 
+correlation_bifidobacterium_diet_per_age  %>%
+  mutate(fdr=p.adjust(p.value, method="fdr")) %>%
+  ggplot() + geom_bar(aes(x=AGE_CAT,y=estimate, fill=estimate>0, alpha=fdr<0.1), stat="identity") + 
+  facet_wrap(~variable %>% gsub("_","\n",.))
+
+correlation_bifidobacterium_health_per_age %>%
+  mutate(fdr=p.adjust(p.value, method="fdr")) %>%
+  ggplot() + geom_bar(aes(x=AGE_CAT,y=estimate, fill=estimate>0, alpha=fdr<0.1), stat="identity") + 
+  facet_wrap(~variable %>% gsub("_","\n",.))
+
+
+
+```
 
