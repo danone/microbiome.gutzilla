@@ -494,9 +494,9 @@ rbind(diet_melt, health_melt) %>%
   mutate(Bifidobacterium = scale(log10(Bifidobacterium+10^-4))) %>% #ggplot() + geom_boxplot(aes(y=Bifidobacterium, x=AGE_CAT))
   ungroup() %>%
   mutate(value = value%>% as.factor()) %>%
-  reshape2::dcast(SAMPLE_NAME + Bifidobacterium + Enterotypes_id + AGE_CAT ~ variable, value.var="value", fill=NA) %>%
-  #mutate(Bifidobacterium = ifelse(Bifidobacterium>1, "High",ifelse(Bifidobacterium<-1,"Low","Mid"))) %>%
-  mutate(Bifidobacterium = Bifidobacterium %>% cut(3, label=c("Low","Mid","High"))) %>%
+  reshape2::dcast(SAMPLE_NAME + Bifidobacterium + Enterotypes_id + AGE_CAT ~ variable, value.var="value", fill=NA) %>% 
+  mutate(Bifidobacterium = ifelse(Bifidobacterium>quantile(Bifidobacterium,2/3), "High",ifelse(Bifidobacterium<quantile(Bifidobacterium, 0.33),"Low","Mid"))) %>% #ggplot() + geom_bar(aes(x=Bifidobacterium))
+  #mutate(Bifidobacterium = Bifidobacterium %>% cut(3, label=c("Low","Mid","High"))) %>% ggplot() + geom_bar(aes(x=Bifidobacterium))
   filter(Bifidobacterium != "Mid") %>%
   mutate(Enterotypes_id=Enterotypes_id%>%as.character()) %>%
   #mutate(FOOD_ALLERGY=FOOD_ALLERGY*-1) %>%
@@ -511,5 +511,70 @@ createTable(res, show.ratio = TRUE, show.p.mul=TRUE) %>% export2word(file="bif_c
 
 ```
 
+### select bacteroides branch
+```{r}
 
+# Bacteroides-> Clostridiales : c(11,15,6,8,10,3,4,2, 1, 5)
+
+rbind(diet_melt, health_melt) %>%
+  group_by(AGE_CAT) %>%
+  mutate(Bifidobacterium = scale(log10(Bifidobacterium+10^-4))) %>% #ggplot() + geom_boxplot(aes(y=Bifidobacterium, x=AGE_CAT))
+  ungroup() %>%
+  mutate(value = value%>% as.factor()) %>%
+  reshape2::dcast(SAMPLE_NAME + Bifidobacterium + Enterotypes_id + AGE_CAT ~ variable, value.var="value", fill=NA) %>% 
+  mutate(Bifidobacterium = ifelse(Bifidobacterium>quantile(Bifidobacterium,2/3), "High",ifelse(Bifidobacterium<quantile(Bifidobacterium, 0.33),"Low","Mid"))) %>% #ggplot() + geom_bar(aes(x=Bifidobacterium))
+  #mutate(Bifidobacterium = Bifidobacterium %>% cut(3, label=c("Low","Mid","High"))) %>% ggplot() + geom_bar(aes(x=Bifidobacterium))
+  filter(Bifidobacterium != "Mid") %>%
+  mutate(Enterotypes_id=Enterotypes_id%>%as.character()) %>%
+  #mutate(FOOD_ALLERGY=FOOD_ALLERGY*-1) %>%
+  tibble::column_to_rownames("SAMPLE_NAME") -> bif_table
+  descrTable(bif_table)
+  
+  res=compareGroups(Bifidobacterium ~ . -AGE_CAT -Enterotypes_id, data=bif_table, max.xlev = 20)
+  res_bacteroides=compareGroups(Bifidobacterium ~ . -AGE_CAT -Enterotypes_id, data=bif_table, max.xlev = 20, subset = Enterotypes_id %in% c(11,15,6,8,10,3,4,2))
+createTable(res_bacteroides, show.ratio = TRUE)$descr %>% as.data.frame
+res_prevotella=compareGroups(Bifidobacterium ~ . -AGE_CAT -Enterotypes_id, data=bif_table, max.xlev = 20, subset = Enterotypes_id %in% c(7,17,16,14,18))
+
+bacteroides_tab = createTable(res_bacteroides, show.ratio = TRUE, show.p.mul=TRUE, show.p.overall = FALSE)
+
+prevotella_tab  = createTable(res_prevotella,  show.ratio = TRUE, show.p.mul=TRUE, show.p.overall = FALSE)
+
+all_tab         = createTable(res,             show.ratio = TRUE, show.p.mul=TRUE, show.p.overall = FALSE) 
+
+
+cbind(BACTEROIDES=bacteroides_tab, PREVOTELLA=prevotella_tab) %>% export2word(file="bif_compare_group_strata2.docx")
+
+
+data.frame(bacteroides_tab$descr, branch="bacteroides") %>% 
+  as.data.frame %>%
+  tibble::rownames_to_column("variable") %>%
+  rbind(data.frame(prevotella_tab$descr,branch="prevotella") %>% as.data.frame %>% tibble::rownames_to_column("variable")) %>%
+  select(variable,OR,p.ratio, branch) %>%
+  filter(OR != "Ref.") %>%
+  tidyr::separate(OR, into=c("OR","a"), sep = "\\[") %>%
+  mutate(OR = OR %>% as.numeric) %>%
+  select(-a) %>%
+  reshape2::dcast(variable~branch, value.var = "OR") %>%
+  ggplot() + geom_point(aes(x=bacteroides,y=prevotella)) + 
+  scale_x_continuous(trans="log2") +scale_y_continuous(trans="log2") +
+  geom_abline(slope=1, intercept = 0)
+
+
+data.frame(bacteroides_tab$descr, branch="bacteroides") %>% 
+  as.data.frame %>%
+  tibble::rownames_to_column("variable") %>%
+  rbind(data.frame(prevotella_tab$descr,branch="prevotella") %>% as.data.frame %>% tibble::rownames_to_column("variable")) %>%
+  select(variable,OR,p.ratio, branch) %>%
+  filter(OR != "Ref.") %>%
+  tidyr::separate(OR, into=c("OR","a"), sep = "\\[") %>%
+  mutate(OR = OR %>% as.numeric) %>%
+  select(-a) %>%
+  reshape2::dcast(variable~branch, value.var = "OR") %>%
+  filter((prevotella<0.75 & bacteroides > 1.25) | (prevotella>1.25 & bacteroides < 0.75 ))
+
+
+
+
+
+```
 
