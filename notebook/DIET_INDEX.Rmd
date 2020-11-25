@@ -1,0 +1,361 @@
+---
+title: "DIET INDEX CREATION"
+author: "Soline Chaumont"
+date: "17 Novembre 2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    df_print: kable
+geometry: margin=0.7cm
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+#knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.width=12, fig.height=8)
+```
+
+<style type="text/css">
+
+body, td {
+   font-size: 12x;
+}
+code.r{
+  font-size:12px;
+}
+pre {
+  font-size: 12px
+}
+</style>
+
+```{r set-options, include=FALSE, cache=FALSE}
+options(width = 10000)
+```
+
+
+```{r, include=FALSE}
+# library(plyr)
+# library(dplyr)
+# library(devtools)
+# library(gplots)
+# library(gridExtra)
+# library(car)
+# library(lsmeans)
+# library(lazyWeave)
+# library(stringr)
+# library(purrr)
+# library(tidyr)
+# library(ggplot2)
+# library(compareGroups)
+# library(readr)
+# library(SASxport)
+# library(foreign)
+# library(data.table)
+# library(Hmisc)
+
+#setwd("C:/Users/chaumoso/OneDrive - Danone/GUTZILLA_DATA/data")
+
+############################# FILE ONE META DATA PER VIOSCREEN ID N = 1800 ###############################
+SOCIO_DEMO_GUTZILLA <- read.csv(file = "data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv",sep=";",dec = ",",na.strings=c(""," ","NA"))
+
+#DATAMANAGEMENT
+SOCIO_DEMO_GUTZILLA <- data.frame(lapply(SOCIO_DEMO_GUTZILLA, function(x) {
+  gsub("false", "No", x)
+}))
+
+SOCIO_DEMO_GUTZILLA <- data.frame(lapply(SOCIO_DEMO_GUTZILLA, function(x) {
+  gsub("true", "Yes", x)
+}))
+
+#RECODER VARIABLE
+SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY=="Daily" | 
+                                      SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY=="Regularly (3-5 times/week)","2",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY=="Never", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY=="Rarely (less than once/week)","1",
+                                      SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$FRUIT_FREQUENCY_SCORE)*0.5
+
+SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY=="Daily" | 
+                                      SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY=="Regularly (3-5 times/week)","2",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY=="Never", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY=="Rarely (less than once/week)","1",
+                                      SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$HOMECOOKED_MEALS_FREQUENCY_SCORE)*0.25
+
+SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY=="Daily" | 
+                                      SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY=="Never","0",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY=="Regularly (3-5 times/week)", "1",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY=="Rarely (less than once/week)","2",
+                                      SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$RED_MEAT_FREQUENCY_SCORE)*0.5
+
+SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY=="Daily","1",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY=="Never", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY=="Rarely (less than once/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY=="Regularly (3-5 times/week)","2",
+                                      SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$MEAT_EGGS_FREQUENCY_SCORE)*0.5
+
+SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY=="Daily" | 
+                                      SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY=="Regularly (3-5 times/week)","2",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY=="Never", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY=="Rarely (less than once/week)","1",
+                                      SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$MILK_CHEESE_FREQUENCY_SCORE)*1
+
+SOCIO_DEMO_GUTZILLA$OLIVE_OIL_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$OLIVE_OIL) & 
+                                      SOCIO_DEMO_GUTZILLA$OLIVE_OIL=="Daily" | 
+                                      SOCIO_DEMO_GUTZILLA$OLIVE_OIL=="Regularly (3-5 times/week)","2",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$OLIVE_OIL) & 
+                                      SOCIO_DEMO_GUTZILLA$OLIVE_OIL=="Never", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$OLIVE_OIL) & 
+                                      SOCIO_DEMO_GUTZILLA$OLIVE_OIL=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$OLIVE_OIL=="Rarely (less than once/week)","1",
+                                      SOCIO_DEMO_GUTZILLA$OLIVE_OIL)))
+SOCIO_DEMO_GUTZILLA$OLIVE_OIL_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$OLIVE_OIL_SCORE)*1
+
+SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY=="Regularly (3-5 times/week)","1",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY=="Daily", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY=="Never" | 
+                                      SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY=="Rarely (less than once/week)","2",
+                                      SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$READY_TO_EAT_MEALS_FREQUENCY_SCORE)*0.25
+
+SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY=="Regularly (3-5 times/week)","1",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY=="Daily", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY=="Never" | 
+                                      SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY=="Rarely (less than once/week)","2",
+                                      SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$SUGARY_SWEETS_FREQUENCY_SCORE)*0.5
+
+SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY=="Regularly (3-5 times/week)","1",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY=="Daily", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY=="Never" | 
+                                      SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY=="Rarely (less than once/week)","2",
+                                      SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE)*1
+
+SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY=="Daily" | 
+                                      SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY=="Regularly (3-5 times/week)","2",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY=="Never", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY=="Rarely (less than once/week)","1",
+                                      SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$VEGETABLE_FREQUENCY_SCORE)*0.5
+
+SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY=="Daily" | 
+                                      SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY=="Regularly (3-5 times/week)","2",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY=="Never", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY=="Rarely (less than once/week)","1",
+                                      SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$WHOLE_GRAIN_FREQUENCY_SCORE)*1
+
+SOCIO_DEMO_GUTZILLA$DIET_TYPE_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$DIET_TYPE) & 
+                                      SOCIO_DEMO_GUTZILLA$DIET_TYPE=="Omnivore" | 
+                                      SOCIO_DEMO_GUTZILLA$DIET_TYPE=="Omnivore but do not eat red meat" | 
+                                      SOCIO_DEMO_GUTZILLA$DIET_TYPE=="Vegetarian_but_eat_seafood","2",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$DIET_TYPE) & 
+                                      SOCIO_DEMO_GUTZILLA$DIET_TYPE=="Vegan", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$DIET_TYPE) & 
+                                      SOCIO_DEMO_GUTZILLA$DIET_TYPE=="Vegetarian" ,"1",
+                                      SOCIO_DEMO_GUTZILLA$DIET_TYPE)))
+SOCIO_DEMO_GUTZILLA$DIET_TYPE_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$DIET_TYPE_SCORE)*0.2
+
+SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS) & 
+                                      SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS=="21 to 30" | 
+                                      SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS=="More than 30","2",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS) & 
+                                      SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS=="Less than 5", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS) & 
+                                      SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS=="6 to 10" | 
+                                      SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS=="11 to 20","1",
+                                      SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS)))
+SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$TYPES_OF_PLANTS_SCORE)*1
+
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_MODIFIED_PALEO_DIET) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_MODIFIED_PALEO_DIET=="YES","0",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_MODIFIED_PALEO_DIET) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_MODIFIED_PALEO_DIET=="NO", "1",
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_MODIFIED_PALEO_DIET))
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE)
+
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET=="YES","0",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET=="NO", "1",
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET))
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE)*0.1
+
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_FODMAP_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_FODMAP) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_FODMAP=="YES","0",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_FODMAP) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_FODMAP=="NO", "1",
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_FODMAP))
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_FODMAP_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_FODMAP_SCORE)*0.1
+
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_DAIRY) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_DAIRY=="YES","0",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_DAIRY) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_DAIRY=="NO", "1",
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_DAIRY))
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE)*0.2
+
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES=="YES","0",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES) & 
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES=="NO", "1",
+                                      SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES))
+SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE)*0.2
+
+SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY=="Regularly (3-5 times/week)","1",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY=="Daily", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY=="Never" | 
+                                      SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY=="Rarely (less than once/week)","2",
+                                      SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$SALTED_SNACKS_FREQUENCY_SCORE)*0.5
+
+SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY_SCORE <- ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY=="Occasionally (1-2 times/week)" | 
+                                      SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY=="Regularly (3-5 times/week)","2",
+                                       ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY=="Never", "0",
+                                      ifelse(!is.na(SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY) & 
+                                      SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY=="Daily" | 
+                                      SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY=="Rarely (less than once/week)","1",
+                                      SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY)))
+SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY_SCORE <- as.numeric(SOCIO_DEMO_GUTZILLA$SEAFOOD_FREQUENCY_SCORE)*0.5
+
+SOCIO_DEMO_GUTZILLA_2 <- SOCIO_DEMO_GUTZILLA[, which(names(SOCIO_DEMO_GUTZILLA) %in% c("SAMPLE_NAME","SEAFOOD_FREQUENCY_SCORE","SALTED_SNACKS_FREQUENCY_SCORE","SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE","SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE","SPECIALIZED_DIET_FODMAP_SCORE","SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE","SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE","TYPES_OF_PLANTS_SCORE","DIET_TYPE_SCORE","WHOLE_GRAIN_FREQUENCY_SCORE","VEGETABLE_FREQUENCY_SCORE","SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE","SUGARY_SWEETS_FREQUENCY_SCORE","READY_TO_EAT_MEALS_FREQUENCY_SCORE","OLIVE_OIL_SCORE","MILK_CHEESE_FREQUENCY_SCORE","MEAT_EGGS_FREQUENCY_SCORE","RED_MEAT_FREQUENCY_SCORE","HOMECOOKED_MEALS_FREQUENCY_SCORE","FRUIT_FREQUENCY_SCORE"))]
+
+SOCIO_DEMO_GUTZILLA_2$NA_COUNT <- apply(SOCIO_DEMO_GUTZILLA_2, 1, function(x) sum(is.na(x)))
+
+SOCIO_DEMO_GUTZILLA <- SOCIO_DEMO_GUTZILLA[,-which(names(SOCIO_DEMO_GUTZILLA) %in% c("SEAFOOD_FREQUENCY_SCORE","SALTED_SNACKS_FREQUENCY_SCORE","SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE","SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE","SPECIALIZED_DIET_FODMAP_SCORE","SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE","SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE","TYPES_OF_PLANTS_SCORE","DIET_TYPE_SCORE","WHOLE_GRAIN_FREQUENCY_SCORE","VEGETABLE_FREQUENCY_SCORE","SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE","SUGARY_SWEETS_FREQUENCY_SCORE","READY_TO_EAT_MEALS_FREQUENCY_SCORE","OLIVE_OIL_SCORE","MILK_CHEESE_FREQUENCY_SCORE","MEAT_EGGS_FREQUENCY_SCORE","RED_MEAT_FREQUENCY_SCORE","HOMECOOKED_MEALS_FREQUENCY_SCORE","FRUIT_FREQUENCY_SCORE","NA_COUNT"))]
+
+SOCIO_DEMO_GUTZILLA_2$DIET_INDEX <- rowSums(SOCIO_DEMO_GUTZILLA_2[,c(2:21)])
+summary(SOCIO_DEMO_GUTZILLA_2$DIET_INDEX, na.rm = TRUE)
+
+SOCIO_DEMO_GUTZILLA <- merge(SOCIO_DEMO_GUTZILLA, SOCIO_DEMO_GUTZILLA_2, by="SAMPLE_NAME", all.x=TRUE, all.y=FALSE)
+
+DIET_SCORE <- SOCIO_DEMO_GUTZILLA[, which(names(SOCIO_DEMO_GUTZILLA) %in% c("SAMPLE_NAME","VIOSCREEN_SURVEYID","SEAFOOD_FREQUENCY_SCORE","SALTED_SNACKS_FREQUENCY_SCORE","SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE","SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE","SPECIALIZED_DIET_FODMAP_SCORE","SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE","SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE","TYPES_OF_PLANTS_SCORE","DIET_TYPE_SCORE","WHOLE_GRAIN_FREQUENCY_SCORE","VEGETABLE_FREQUENCY_SCORE","SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE","SUGARY_SWEETS_FREQUENCY_SCORE","READY_TO_EAT_MEALS_FREQUENCY_SCORE","OLIVE_OIL_SCORE","MILK_CHEESE_FREQUENCY_SCORE","MEAT_EGGS_FREQUENCY_SCORE","RED_MEAT_FREQUENCY_SCORE","HOMECOOKED_MEALS_FREQUENCY_SCORE","FRUIT_FREQUENCY_SCORE","DIET_INDEX","NA_COUNT"))]
+
+#write.csv2(DIET_SCORE,"DIET_SCORE.csv")
+
+#IMPUTATION
+d <- describe(DIET_SCORE)
+for (i in 1:dim(DIET_SCORE)[1]){
+  if (DIET_SCORE$NA_COUNT[i]<5){
+    if (is.na(DIET_SCORE$FRUIT_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$FRUIT_FREQUENCY_SCORE[i] <- d$FRUIT_FREQUENCY_SCORE$values$value[which.max(d$FRUIT_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$HOMECOOKED_MEALS_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$HOMECOOKED_MEALS_FREQUENCY_SCORE[i] <- d$HOMECOOKED_MEALS_FREQUENCY_SCORE$values$value[which.max(d$HOMECOOKED_MEALS_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$RED_MEAT_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$RED_MEAT_FREQUENCY_SCORE[i] <- d$RED_MEAT_FREQUENCY_SCORE$values$value[which.max(d$RED_MEAT_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$READY_TO_EAT_MEALS_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$READY_TO_EAT_MEALS_FREQUENCY_SCORE[i] <- d$READY_TO_EAT_MEALS_FREQUENCY_SCORE$values$value[which.max(d$READY_TO_EAT_MEALS_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$MEAT_EGGS_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$MEAT_EGGS_FREQUENCY_SCORE[i] <- d$MEAT_EGGS_FREQUENCY_SCORE$values$value[which.max(d$MEAT_EGGS_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$MILK_CHEESE_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$MILK_CHEESE_FREQUENCY_SCORE[i] <- d$MILK_CHEESE_FREQUENCY_SCORE$values$value[which.max(d$MILK_CHEESE_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$OLIVE_OIL_SCORE[i])==TRUE){
+      DIET_SCORE$OLIVE_OIL_SCORE[i] <- d$OLIVE_OIL_SCORE$values$value[which.max(d$OLIVE_OIL_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$SUGARY_SWEETS_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$SUGARY_SWEETS_FREQUENCY_SCORE[i] <- d$SUGARY_SWEETS_FREQUENCY_SCORE$values$value[which.max(d$SUGARY_SWEETS_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE[i] <- d$SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE$values$value[which.max(d$SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$VEGETABLE_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$VEGETABLE_FREQUENCY_SCORE[i] <- d$VEGETABLE_FREQUENCY_SCORE$values$value[which.max(d$VEGETABLE_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$WHOLE_GRAIN_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$WHOLE_GRAIN_FREQUENCY_SCORE[i] <- d$WHOLE_GRAIN_FREQUENCY_SCORE$values$value[which.max(d$WHOLE_GRAIN_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$DIET_TYPE_SCORE[i])==TRUE){
+      DIET_SCORE$DIET_TYPE_SCORE[i] <- d$DIET_TYPE_SCORE$values$value[which.max(d$DIET_TYPE_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$TYPES_OF_PLANTS_SCORE[i])==TRUE){
+      DIET_SCORE$TYPES_OF_PLANTS_SCORE[i] <- d$TYPES_OF_PLANTS_SCORE$values$value[which.max(d$TYPES_OF_PLANTS_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE[i])==TRUE){
+      DIET_SCORE$SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE[i] <- d$SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE$values$value[which.max(d$SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE[i])==TRUE){
+      DIET_SCORE$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE[i] <- d$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE$values$value[which.max(d$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$SPECIALIZED_DIET_FODMAP_SCORE[i])==TRUE){
+      DIET_SCORE$SPECIALIZED_DIET_FODMAP_SCORE[i] <- d$SPECIALIZED_DIET_FODMAP_SCORE$values$value[which.max(d$SPECIALIZED_DIET_FODMAP_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE[i])==TRUE){
+      DIET_SCORE$SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE[i] <- d$SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE$values$value[which.max(d$SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE[i])==TRUE){
+      DIET_SCORE$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE[i] <- d$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE$values$value[which.max(d$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$SALTED_SNACKS_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$SALTED_SNACKS_FREQUENCY_SCORE[i] <- d$SALTED_SNACKS_FREQUENCY_SCORE$values$value[which.max(d$SALTED_SNACKS_FREQUENCY_SCORE$values$frequency)]
+    } else if (is.na(DIET_SCORE$SEAFOOD_FREQUENCY_SCORE[i])==TRUE){
+      DIET_SCORE$SEAFOOD_FREQUENCY_SCORE[i] <- d$SEAFOOD_FREQUENCY_SCORE$values$value[which.max(d$SEAFOOD_FREQUENCY_SCORE$values$frequency)]
+    }
+  }
+}
+
+DIET_SCORE$FRUIT_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$FRUIT_FREQUENCY_SCORE)
+DIET_SCORE$HOMECOOKED_MEALS_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$HOMECOOKED_MEALS_FREQUENCY_SCORE)
+DIET_SCORE$RED_MEAT_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$RED_MEAT_FREQUENCY_SCORE)
+DIET_SCORE$MEAT_EGGS_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$MEAT_EGGS_FREQUENCY_SCORE)
+DIET_SCORE$MILK_CHEESE_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$MILK_CHEESE_FREQUENCY_SCORE)
+DIET_SCORE$OLIVE_OIL_SCORE <- as.numeric(DIET_SCORE$OLIVE_OIL_SCORE)
+DIET_SCORE$READY_TO_EAT_MEAL_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$READY_TO_EAT_MEAL_FREQUENCY_SCORE)
+DIET_SCORE$SUGARY_SWEETS_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$SUGARY_SWEETS_FREQUENCY_SCORE)
+DIET_SCORE$SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$SUGAR_SWEETENED_DRINK_FREQUENCY_SCORE)
+DIET_SCORE$VEGETABLE_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$VEGETABLE_FREQUENCY_SCORE)
+DIET_SCORE$WHOLE_GRAIN_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$WHOLE_GRAIN_FREQUENCY_SCORE)
+DIET_SCORE$DIET_TYPE_SCORE <- as.numeric(DIET_SCORE$DIET_TYPE_SCORE)
+DIET_SCORE$TYPES_OF_PLANTS_SCORE <- as.numeric(DIET_SCORE$TYPES_OF_PLANTS_SCORE)
+DIET_SCORE$SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE <- as.numeric(DIET_SCORE$SPECIALIZED_DIET_MODIFIED_PALEO_DIET_SCORE)
+DIET_SCORE$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE <- as.numeric(DIET_SCORE$SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET_SCORE)
+DIET_SCORE$SPECIALIZED_DIET_FODMAP_SCORE <- as.numeric(DIET_SCORE$SPECIALIZED_DIET_FODMAP_SCORE)
+DIET_SCORE$SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE <- as.numeric(DIET_SCORE$SPECIALIZED_DIET_EXCLUDE_DAIRY_SCORE)
+DIET_SCORE$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE <- as.numeric(DIET_SCORE$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES_SCORE)
+DIET_SCORE$SALTED_SNACKS_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$SALTED_SNACKS_FREQUENCY_SCORE)
+DIET_SCORE$SEAFOOD_FREQUENCY_SCORE <- as.numeric(DIET_SCORE$SEAFOOD_FREQUENCY_SCORE)
+DIET_SCORE$DIET_INDEX_IMP <- rowSums(DIET_SCORE[,c(3:22)])
+
+write.csv2(DIET_SCORE,"DIET_SCORE_IMP.csv")
+
+```
