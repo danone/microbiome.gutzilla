@@ -1,0 +1,180 @@
+---
+title: "health vs microbiota partition"
+output: html_notebook
+---
+
+
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+devtools::load_all(reset = FALSE)
+
+
+
+```
+
+
+
+## load enterotypes set from DMM analysis
+```{r}
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+enterotypes %>% head
+
+
+
+```
+
+
+```{r}
+
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+
+```
+
+
+### health data
+
+```{r}
+health_metadata = c("BMI_CAT",
+"ANTIBIOTIC_HISTORY" ,
+"ALZHEIMERS",
+"AUTOIMMUNE",
+"CANCER",
+"DIABETES",
+"IBD",
+"IBS",
+"KIDNEY_DISEASE",
+"ACID_REFLUX",
+#"ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF",
+"CARDIOVASCULAR_DISEASE",
+"CDIFF",
+"DEPRESSION_BIPOLAR_SCHIZOPHRENIA",
+"EPILEPSY_OR_SEIZURE_DISORDER",
+"FUNGAL_OVERGROWTH",
+"GLUTEN",
+"LACTOSE",
+"LIVER_DISEASE",
+"LUNG_DISEASE",
+"MENTAL_ILLNESS",
+"MIGRAINE",
+"PKU",
+"SIBO",
+"THYROID")
+```
+
+
+
+```{r}
+
+metadata %>%
+  select(SAMPLE_NAME, all_of(health_metadata)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value = ifelse(value=="false","No",value)) %>%
+  mutate(value = value %>% recode(`Diagnosed by a medical professional (doctor, physician assistant)` = 1,
+                            `I do not have this condition` = 0,
+                            `Diagnosed by an alternative medicine practitioner` = 2,
+                            `I do not eat gluten because it makes me feel bad` = 1,
+                            `I have not taken antibiotics in the past year.` = 0,
+                            `I was diagnosed with celiac disease` = 1,
+                            `I was diagnosed with gluten allergy (anti-gluten IgG), but not celiac disease` = 1,
+                            `Self-diagnosed` = 2,
+                            `Obese` = 1,
+                            `Normal` = 0,
+                            `Yes` = 1,
+                            `No` = 0,
+                            `true` = 1,
+                            `Overweight` = 0,
+                            `Underweight` = 0,
+                            `Week` = 0,
+                            `Year` = 0,
+                            `Month` = 0,
+                            `6 months` = 0)) %>%
+  filter(value!=2) %>%
+ # mutate(variable = ifelse(variable=="BMI_CAT","Obesity",variable)) %>%
+#  mutate(value=ifelse(variable=="ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF" & value==0 , 1,
+#    ifelse(variable=="ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF" & value==1,0,value))) %>%
+#  mutate(variable=ifelse(variable=="ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF","FOOD_ALLERGY",variable)) %>%
+  group_by(Enterotypes_id,SAMPLE_NAME) %>%
+  summarise(value=sum(value)) %>%
+  ungroup() %>%
+  group_by(Enterotypes_id,value) %>%
+  summarise(n=n()) %>%
+  summarise(n0= sum(n[value==0]), n1= sum(n[value ==1]), n2=sum(n[value >=2])) %>%
+  reshape2::melt(id.vars="Enterotypes_id") %>%
+  mutate(Enterotypes_id=Enterotypes_id%>%as.character()) %>%
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")) %>%
+  filter(Enterotypes_id != 19) %>%
+  mutate(A=2) %>%
+  ggplot() + 
+  geom_bar(aes(x=A,y=value,fill=variable), position="fill", stat="identity") +
+  scale_fill_brewer(type="seq", palette = 3) + xlim(1,3) +
+  facet_wrap(~as.character(Enterotypes_id)) +
+  coord_polar("y", start = 200) +
+  theme_bw() +
+     theme(panel.grid=element_blank()) +
+     theme(axis.text=element_blank()) +
+     theme(axis.ticks=element_blank()) +
+     labs(title="Disease declared per partitions")
+
+  
+  
+  
+  
+metadata %>%
+  select(SAMPLE_NAME, all_of(health_metadata)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(-value, -set) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","Enterotypes_id")) %>%
+  na.omit() %>%
+  mutate(value = ifelse(value=="false","No",value)) %>%
+  mutate(value = value %>% recode(`Diagnosed by a medical professional (doctor, physician assistant)` = 1,
+                            `I do not have this condition` = 0,
+                            `Diagnosed by an alternative medicine practitioner` = 2,
+                            `I do not eat gluten because it makes me feel bad` = 1,
+                            `I have not taken antibiotics in the past year.` = 0,
+                            `I was diagnosed with celiac disease` = 1,
+                            `I was diagnosed with gluten allergy (anti-gluten IgG), but not celiac disease` = 1,
+                            `Self-diagnosed` = 2,
+                            `Obese` = 1,
+                            `Normal` = 0,
+                            `Yes` = 1,
+                            `No` = 0,
+                            `true` = 1,
+                            `Overweight` = 0,
+                            `Underweight` = 0,
+                            `Week` = 0,
+                            `Year` = 0,
+                            `Month` = 0,
+                            `6 months` = 0)) %>%
+  filter(value!=2) %>%
+  #mutate(variable = ifelse(variable=="BMI_CAT","Obesity",variable)) %>%
+  #mutate(value=ifelse(variable=="ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF" & value==0 , 1,
+  #  ifelse(variable=="ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF" & value==1,0,value))) %>%
+  #mutate(variable=ifelse(variable=="ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF","FOOD_ALLERGY",variable)) %>% 
+  ggplot() + geom_bar(aes(x=variable%>%as.character,fill=value%>%as.character)) + coord_flip()
+
+
+
+
+```
+
+
+```{r}
+
+table(metadata$ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF)
+
+
+
+```
+
