@@ -1,0 +1,626 @@
+---
+title: "partitions vs ordinal metadata"
+output: html_notebook
+---
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+devtools::load_all()
+
+library(dplyr)
+library(ggplot2)
+
+
+```
+
+
+
+```{r, warning=FALSE}
+
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1] %>% filter(!is.na(Enterotypes_id))
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+
+metadata %>% .[1:5,1:5]
+
+
+data("UNSD_countries")
+
+metadata <- metadata %>% 
+  #select(SAMPLE_NAME, COUNTRY_OF_BIRTH) %>%
+  merge(UNSD_countries %>% 
+          select(`Country or Area`, `Sub-region Name`, `Region Name`) %>% 
+          mutate(`Country or Area` =  gsub("United Kingdom of Great Britain and Northern Ireland", "United Kingdom", `Country or Area`)) %>% 
+          mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
+        by.x="COUNTRY_OF_BIRTH", by.y="Country or Area")
+
+
+
+
+
+
+
+
+
+health_metadata = c("BMI_CAT",
+"ANTIBIOTIC_HISTORY" ,
+"ALZHEIMERS",
+"AUTOIMMUNE",
+"CANCER",
+"DIABETES",
+"IBD",
+"IBS",
+"KIDNEY_DISEASE",
+"ACID_REFLUX",
+"ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF",
+"CARDIOVASCULAR_DISEASE",
+"CDIFF",
+"DEPRESSION_BIPOLAR_SCHIZOPHRENIA",
+"EPILEPSY_OR_SEIZURE_DISORDER",
+"FUNGAL_OVERGROWTH",
+"GLUTEN",
+"LACTOSE",
+"LIVER_DISEASE",
+"LUNG_DISEASE",
+"MENTAL_ILLNESS",
+"MIGRAINE",
+"PKU",
+"SIBO",
+"THYROID")
+
+diet_variables =
+  c("TYPES_OF_PLANTS",
+  "DIET_TYPE",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "SPECIALIZED_DIET_FODMAP",
+  "SPECIALIZED_DIET_EXCLUDE_DAIRY",
+  "SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+  "SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+  "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET",
+  "OLIVE_OIL")
+
+
+
+
+
+```
+
+```{r}
+
+enterotypes %>%
+  reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+  merge(metadata %>% select(SAMPLE_NAME,ANTIBIOTIC_HISTORY),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  na.omit() %>%
+  mutate(ANTIBIOTIC_HISTORY = dplyr::recode_factor(ANTIBIOTIC_HISTORY,   
+                             `I have not taken antibiotics in the past year.`="I have not taken antibiotics in the past year.",
+                             `Year`="Year", `6 months`="6 months",  
+                             `Month`="Month", `Week` = "Week",  
+                             .ordered = TRUE)  ) %>%
+  select(-SAMPLE_NAME,-`19`) -> df_test
+  
+polr_model = MASS::polr(ANTIBIOTIC_HISTORY ~ ., data = df_test, Hess=TRUE)
+
+summary(polr_model)
+
+exp(coef(polr_model))
+
+ctable <- coef(summary(polr_model))
+
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+ctable <- cbind(ctable, "p value" = p)
+
+ci <- confint(polr_model)
+
+exp(cbind(OR = coef(polr_model), ci))
+ctable
+
+
+
+```
+```{r}
+metadata$TYPES_OF_PLANTS %>% table
+
+
+```
+
+
+```{r}
+
+
+enterotypes %>%
+  reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+  merge(metadata %>% select(SAMPLE_NAME,TYPES_OF_PLANTS),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  na.omit() %>%
+  mutate(TYPES_OF_PLANTS = dplyr::recode_factor(TYPES_OF_PLANTS,   
+                             `Less than 5`="Less than 5",
+                             `6 to 10`="6 to 10", `11 to 20`="11 to 20",  
+                             `21 to 30`="21 to 30", `More than 30` = "More than 30",  
+                             .ordered = TRUE)  ) %>%
+  select(-SAMPLE_NAME,-`19`) -> df_test
+  
+polr_model = MASS::polr(TYPES_OF_PLANTS ~ ., data = df_test, Hess=TRUE)
+
+summary(polr_model)
+
+exp(coef(polr_model))
+
+ctable <- coef(summary(polr_model))
+
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+ctable <- cbind(ctable, "p value" = p)
+
+ci <- confint(polr_model)
+
+exp(cbind(OR = coef(polr_model), ci))
+ctable
+
+
+
+
+
+```
+
+```{r}
+
+metadata$ONE_LITER_OF_WATER_A_DAY_FREQUENCY %>% table
+
+enterotypes %>%
+  reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+  merge(metadata %>% select(SAMPLE_NAME,ONE_LITER_OF_WATER_A_DAY_FREQUENCY),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  na.omit() %>%
+  mutate(ONE_LITER_OF_WATER_A_DAY_FREQUENCY = dplyr::recode_factor(ONE_LITER_OF_WATER_A_DAY_FREQUENCY,   
+                             `Never`="Never",
+                             `Rarely`="Rarely (less than once/week)",
+                             `Occasionally`="Occasionally (1-2 times/week)",  
+                             `Regularly`="Regularly (3-5 times/week)", 
+                             `Daily` = "Daily",  
+                             .ordered = TRUE)  ) %>%
+  select(-SAMPLE_NAME,-`19`) -> df_test
+  
+polr_model = MASS::polr(ONE_LITER_OF_WATER_A_DAY_FREQUENCY ~ ., data = df_test, Hess=TRUE)
+
+summary(polr_model)
+
+exp(coef(polr_model))
+
+ctable <- coef(summary(polr_model))
+
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+ctable <- cbind(ctable, "p value" = p)
+
+ci <- confint(polr_model)
+
+exp(cbind(OR = coef(polr_model), ci))
+ctable
+
+
+
+
+
+
+```
+
+```{r}
+
+diet_variables =
+  c("TYPES_OF_PLANTS",
+  "DIET_TYPE",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "SPECIALIZED_DIET_FODMAP",
+  "SPECIALIZED_DIET_EXCLUDE_DAIRY",
+  "SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+  "SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+  "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET",
+  "OLIVE_OIL")
+
+
+
+prepare_data_for_modeling = function(target, levels_set, order_levels) {
+
+  target <- enquo(target)
+  #levels_set <- enquo(levels_set)
+  
+  enterotypes %>%
+    reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+    merge(metadata %>% select(SAMPLE_NAME,!!target),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+    na.omit() %>%
+    dplyr::rename(x := !!target) %>%
+    mutate(x = forcats::fct_recode(x, !!!levels_set) %>% 
+             factor(levels = order_levels , ordered = TRUE) )  %>%
+    select(-SAMPLE_NAME,-`19`) -> df_test
+  
+return(df_test)
+    
+}
+
+
+
+  
+polr_modeling = function(data) {
+  
+  df_test=data
+  
+  polr_model = MASS::polr(x ~ ., data = df_test, Hess=TRUE)
+  
+  #summary(polr_model)
+  
+  #exp(coef(polr_model))
+  
+  ctable <- coef(summary(polr_model))
+  p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+  ctable <- cbind(ctable, "p value" = p)
+  ci <- confint(polr_model)
+  #exp(cbind(OR = coef(polr_model), ci))
+  #ctable
+  
+  res=merge(exp(cbind(OR = coef(polr_model), ci)),ctable,by="row.names", all=TRUE)
+  return(res)
+}
+    
+
+target =
+  c("RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "OLIVE_OIL")
+
+
+#target = c("RED_MEAT_FREQUENCY","WHOLE_GRAIN_FREQUENCY")
+
+
+
+
+levels_set = c(`Never`="Never",
+                             `Rarely`="Rarely (less than once/week)",
+                             `Occasionally`="Occasionally (1-2 times/week)",  
+                             `Regularly`="Regularly (3-5 times/week)", 
+                             `Daily` = "Daily")
+
+order_levels = c("Never","Rarely","Occasionally","Regularly","Daily")
+
+
+combine_polr_model_result = function(target,levels_set, order_levels){
+
+  final_res = NULL
+  
+for(i in seq_along(target)) {
+  
+  cat("modeling",target[i],"...")
+  
+  res= prepare_data_for_modeling(target = target[i], levels_set=levels_set, order_levels=order_levels) %>% 
+  polr_modeling()
+  
+  tmp=data.frame(target=target[i],res)
+  
+  final_res = rbind(final_res,tmp)
+  
+  cat(". done") }
+
+  return(final_res) 
+    
+}
+
+
+diet_final_res = combine_polr_model_result(target = target, levels_set=levels_set, order_levels=order_levels)
+
+
+
+```
+
+
+```{r fig.height=10, fig.width=16}
+
+
+diet_final_res %>%
+  mutate(Row.names = Row.names %>% as.character()) %>% 
+  mutate(OR = cut(OR, breaks = c(0,1/4,1/2,1,2,4,100)) %>% as.character()) %>%
+  filter(!is.na(OR)) %>% #pull(OR)
+  mutate(OR = ifelse(p.value>0.05,"NS",OR)) %>% #pull(OR) %>% factor()
+  mutate(OR = factor(OR, levels=c("(0.25,0.5]", "(0.5,1]", "NS", "(1,2]", "(2,4]", "(4,100]" )  )) %>% 
+  filter(Row.names %in% paste0("`",as.character(1:20),"`")   ) %>%
+  ggplot() + geom_tile(aes(x=Row.names%>%as.character, y=target, fill=OR)) + 
+  scale_fill_manual("OR", labels=c("0.25-0.5","0.5-1","NS","1-2","2-4",">4"), 
+                    values = c("#d8b365","#f6e8c3","#f5f5f5","#c7eae5","#5ab4ac","#01665e")) + cowplot::theme_cowplot()
+
+
+diet_final_res %>%
+  mutate(Row.names = Row.names %>% as.character()) %>%
+  filter(!is.na(OR)) %>%
+  reshape2::dcast(Row.names~target, value.var = "OR") %>%
+  tibble::column_to_rownames("Row.names") %>%
+  as.matrix() %>%
+  t() %>%
+  heatmap()
+
+
+```
+
+
+
+```{r}
+
+metadata$`Sub-region Name` %>% table
+metadata$`Region Name` %>% table
+
+enterotypes %>%
+  reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+  merge(metadata %>% select(SAMPLE_NAME,`Sub-region Name`),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  na.omit() %>%
+  mutate(`Sub-region Name` = forcats::fct_relevel(`Sub-region Name`, ref = "Northern America")) %>%
+  select(-SAMPLE_NAME,-`19`) %>%
+  nnet::multinom(`Sub-region Name` ~ ., data = .) -> region_birth_model
+
+region_birth_model_summary = summary(region_birth_model)
+
+ci = confint(region_birth_model)
+
+zvalues <- region_birth_model_summary$coefficients / region_birth_model_summary$standard.errors
+pnorm(abs(zvalues), lower.tail=FALSE)*2
+
+
+(100*(exp(coef(region_birth_model))-1)) %>% .[,-1] %>%  heatmap()
+
+
+coef(region_birth_model) %>% .[,-1] %>% heatmap()
+
+zvalues %>% .[,-1] %>% .[,-13]%>%  heatmap()
+
+
+```
+
+```{r}
+
+coef(region_birth_model) %>% .[,-1] %>% as.data.frame() %>%
+  tibble::rownames_to_column("region") %>%
+  reshape2::melt(id.vars="region") %>%
+  group_by(region) %>%
+  mutate(value=scale(value)) %>%
+  ggplot() + geom_tile(aes(y=region,x=variable,fill=value)) + scale_fill_distiller(type="div")
+
+
+```
+
+
+
+```{r}
+
+
+metadata$GLUTEN %>% table
+
+enterotypes %>%
+  reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+  merge(metadata %>% select(SAMPLE_NAME,GLUTEN),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  na.omit() %>%
+  mutate(GLUTEN = forcats::fct_recode(GLUTEN,   
+                             `No`="No",
+                             `Yes`="I do not eat gluten because it makes me feel bad",
+                             `Yes`="I was diagnosed with celiac disease",  
+                             `medium`="I was diagnosed with gluten allergy (anti-gluten IgG), but not celiac disease") %>% 
+           factor(levels = c("No","medium","Yes") , ordered = TRUE) )  %>%
+  select(-SAMPLE_NAME,-`19`) -> df_test
+  
+polr_model = MASS::polr(GLUTEN ~ ., data = df_test, Hess=TRUE)
+
+summary(polr_model)
+
+exp(coef(polr_model))
+
+ctable <- coef(summary(polr_model))
+
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+ctable <- cbind(ctable, "p value" = p)
+
+ci <- confint(polr_model)
+
+exp(cbind(OR = coef(polr_model), ci))
+ctable
+
+
+
+
+
+
+
+```
+
+```{r}
+
+
+metadata$GLUTEN %>% table
+
+enterotypes %>%
+  reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+  merge(metadata %>% select(SAMPLE_NAME,GLUTEN),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  na.omit() %>%
+  mutate(GLUTEN = forcats::fct_recode(GLUTEN,   
+                             `No`="No",
+                             `Yes`="I do not eat gluten because it makes me feel bad",
+                             `Yes`="I was diagnosed with celiac disease",  
+                             `Yes`="I was diagnosed with gluten allergy (anti-gluten IgG), but not celiac disease") %>% 
+           factor(levels = c("No","Yes") , ordered = TRUE) )  %>%
+  select(-SAMPLE_NAME,-`19`) -> df_test
+  
+polr_model = glm(GLUTEN ~ ., data = df_test, family=binomial)
+
+summary(polr_model)
+
+exp(coef(polr_model))
+
+ctable <- coef(summary(polr_model))
+
+#p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+#ctable <- cbind(ctable, "p value" = p)
+
+ci <- confint(polr_model)
+
+exp(cbind(OR = coef(polr_model), ci))
+ctable
+
+
+
+
+
+```
+
+```{r}
+
+
+metadata$SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES %>% table
+
+enterotypes %>%
+  reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+  merge(metadata %>% select(SAMPLE_NAME,SPECIALIZED_DIET_EXCLUDE_DAIRY),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  na.omit() %>%
+  mutate(SPECIALIZED_DIET_EXCLUDE_DAIRY = forcats::fct_recode(SPECIALIZED_DIET_EXCLUDE_DAIRY,   
+                             `No`="No",
+                             `Yes`="Yes",
+                             `Yes`="true",  
+                             `No`="false") %>% 
+           factor(levels = c("No","Yes") , ordered = TRUE) )  %>%
+  select(-SAMPLE_NAME,-`19`) -> df_test
+  
+polr_model = glm(SPECIALIZED_DIET_EXCLUDE_DAIRY ~ ., data = df_test, family=binomial)
+
+summary(polr_model)
+
+exp(coef(polr_model))
+
+ctable <- coef(summary(polr_model))
+
+#p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+#ctable <- cbind(ctable, "p value" = p)
+
+ci <- confint(polr_model)
+
+exp(cbind(OR = coef(polr_model), ci))
+ctable
+
+
+
+
+```
+```{r}
+
+
+
+metadata$DIABETES %>% table
+
+enterotypes %>%
+  reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+  merge(metadata %>% select(SAMPLE_NAME,DIABETES),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  na.omit() %>%
+  mutate(DIABETES = forcats::fct_recode(DIABETES,   
+                             `No`="I do not have this condition",
+                             `Yes`="Diagnosed by a medical professional (doctor, physician assistant)",
+                             `medium`="Diagnosed by an alternative medicine practitioner",  
+                             `medium`="Self-diagnosed") %>% 
+           factor(levels = c("No","medium","Yes") , ordered = TRUE) )  %>%
+  filter(DIABETES != "medium") %>%
+  select(-SAMPLE_NAME,-`19`) -> df_test
+  
+polr_model = glm(DIABETES ~ ., data = df_test, family=binomial)
+
+summary(polr_model)
+
+exp(coef(polr_model))
+
+ctable <- coef(summary(polr_model))
+
+#p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+#ctable <- cbind(ctable, "p value" = p)
+
+ci <- confint(polr_model)
+
+exp(cbind(OR = coef(polr_model), ci))
+ctable
+
+
+
+
+
+```
+
+```{r}
+
+
+metadata$BMI_CAT %>% table
+
+enterotypes %>%
+  reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
+  merge(metadata %>% select(SAMPLE_NAME,BMI_CAT),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  na.omit() %>%
+  mutate(BMI_CAT = forcats::fct_recode(BMI_CAT,   
+                             `Underweight`="Underweight",
+                             `Normal`="Normal",
+                             `Overweight`="Overweight",  
+                             `Obese`="Obese") %>% 
+           factor(levels = c("Underweight","Normal","Overweight","Obese") , ordered = TRUE) )  %>%
+  filter(BMI_CAT != "Underweight") %>%
+  mutate(BMI_CAT = factor(BMI_CAT, levels = c("Normal","Overweight","Obese") , ordered = TRUE)) %>%
+  select(-SAMPLE_NAME,-`19`) -> df_test
+  
+polr_model = MASS::polr(BMI_CAT ~ ., data = df_test, Hess=TRUE)
+
+summary(polr_model)
+
+exp(coef(polr_model))
+
+ctable <- coef(summary(polr_model))
+
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+ctable <- cbind(ctable, "p value" = p)
+
+ci <- confint(polr_model)
+
+exp(cbind(OR = coef(polr_model), ci))
+ctable
+
+
+
+
+
+
+```
+
