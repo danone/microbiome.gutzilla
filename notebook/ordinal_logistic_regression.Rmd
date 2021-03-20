@@ -6,10 +6,10 @@ output: html_notebook
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
-devtools::load_all()
-
 library(dplyr)
 library(ggplot2)
+devtools::load_all()
+
 
 
 ```
@@ -40,7 +40,23 @@ metadata <- metadata %>%
 
 
 
-
+variable_to_remove= c("HEIGHT_CM", 
+"WEIGHT_KG",
+"SAMPLE_TYPE",
+"BMI_CAT",
+"HOST_SUBJECT_ID",
+"ANONYMIZED_NAME",
+"ASSIGNED_FROM_GEO",
+"BIRTH_YEAR",
+"DESCRIPTION",
+"DNA_EXTRACTED",
+"HEIGHT_UNITS",
+"WEIGHT_UNITS",
+"SCIENTIFIC_NAME",
+"SURVEY_ID",
+"TAXON_ID",
+"WEIGHT_UNITS",
+"VIOSCREEN_STATUS","VIOSCREEN_SURVEYID","PUBLIC","TITLE","GEO_LOC_NAME")
 
 
 
@@ -251,6 +267,9 @@ prepare_data_for_modeling = function(target, levels_set, order_levels) {
   target <- enquo(target)
   #levels_set <- enquo(levels_set)
   
+  levels_set=levels_set[levels_set %in% (metadata %>% select(SAMPLE_NAME,!!target) %>% pull(2) %>% unique())]
+  
+  
   enterotypes %>%
     reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
     merge(metadata %>% select(SAMPLE_NAME,!!target),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
@@ -280,7 +299,7 @@ polr_modeling = function(data) {
   ctable <- coef(summary(polr_model))
   p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
   ctable <- cbind(ctable, "p value" = p)
-  ci <- confint(polr_model)
+  suppressMessages(ci <- confint(polr_model))
   #exp(cbind(OR = coef(polr_model), ci))
   #ctable
   
@@ -336,7 +355,7 @@ for(i in seq_along(target)) {
   
   final_res = rbind(final_res,tmp)
   
-  cat(". done") }
+  cat(". done\n") }
 
   return(final_res) 
     
@@ -345,7 +364,7 @@ for(i in seq_along(target)) {
 
 diet_final_res = combine_polr_model_result(target = target, levels_set=levels_set, order_levels=order_levels)
 
-
+save(diet_final_res, file="diet_final_res.rda")
 
 ```
 
@@ -368,11 +387,50 @@ diet_final_res %>%
 diet_final_res %>%
   mutate(Row.names = Row.names %>% as.character()) %>%
   filter(!is.na(OR)) %>%
+  mutate(OR=log(OR)) %>%
   reshape2::dcast(Row.names~target, value.var = "OR") %>%
   tibble::column_to_rownames("Row.names") %>%
   as.matrix() %>%
   t() %>%
   heatmap()
+
+
+
+diet_final_res %>%
+  mutate(Row.names = Row.names %>% as.character()) %>%
+  filter(!is.na(OR)) %>%
+  mutate(OR=log(OR)) %>%
+  group_by(target) %>%
+  mutate(OR=scale(OR)) %>%
+  ggplot() + geom_tile(aes(x=Row.names%>%as.character, y=target, fill=OR)) + scale_fill_distiller("log\nOdds",type="div")
+
+
+
+
+
+```
+
+```{r warning=FALSE}
+
+metadata %>% 
+  select(contains("_FREQUENCY"), -OTHER_SUPPLEMENT_FREQUENCY, -FERMENTED_FREQUENCY, OLIVE_OIL) %>%
+  colnames() -> target
+
+levels_set = c(A = "Never",
+               B = "Rarely (less than once/week)",
+               B = "Rarely (less than once/week)",              
+               C = "Occasionally (1-2 times/week)",  
+               D = "Regularly (3-5 times/week)", 
+               E = "Daily")
+
+order_levels=LETTERS[1:5]
+
+#order_levels = c("Never","Rarely","Occasionally","Regularly","Daily")
+
+global_final_res = combine_polr_model_result(target = target[1:3], levels_set=levels_set, order_levels=order_levels)
+
+
+#prepare_data_for_modeling(target = target[1], levels_set=levels_set, order_levels=order_levels)
 
 
 ```
@@ -385,12 +443,19 @@ metadata$`Sub-region Name` %>% table
 metadata$`Region Name` %>% table
 
 enterotypes %>%
+  mutate(Enterotypes_id=paste0("et",Enterotypes_id)) %>%
   reshape2::dcast(`sample_name` ~ `Enterotypes_id`, length) %>%
-  merge(metadata %>% select(SAMPLE_NAME,`Sub-region Name`),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  merge(metadata %>% filter(COUNTRY %in% c("USA","Canada")) %>% select(SAMPLE_NAME,`Sub-region Name`),., by.y="sample_name", by.x="SAMPLE_NAME") %>%
   na.omit() %>%
   mutate(`Sub-region Name` = forcats::fct_relevel(`Sub-region Name`, ref = "Northern America")) %>%
-  select(-SAMPLE_NAME,-`19`) %>%
-  nnet::multinom(`Sub-region Name` ~ ., data = .) -> region_birth_model
+  dplyr::rename(region=`Sub-region Name`) %>%
+  select(-SAMPLE_NAME,-et19) -> df_region
+  nnet::multinom(region ~ ., data = df_region) -> region_birth_model
+
+
+region_birth_model_effects = ggeffects::ggeffect(region_birth_model)
+
+save(region_birth_model, file="region_birth_model.rda")
 
 region_birth_model_summary = summary(region_birth_model)
 
@@ -410,6 +475,8 @@ zvalues %>% .[,-1] %>% .[,-13]%>%  heatmap()
 
 ```
 
+
+
 ```{r}
 
 coef(region_birth_model) %>% .[,-1] %>% as.data.frame() %>%
@@ -418,6 +485,33 @@ coef(region_birth_model) %>% .[,-1] %>% as.data.frame() %>%
   group_by(region) %>%
   mutate(value=scale(value)) %>%
   ggplot() + geom_tile(aes(y=region,x=variable,fill=value)) + scale_fill_distiller(type="div")
+
+
+```
+
+
+
+```{r fig.height=10, fig.width=10}
+
+rbind(coef(region_birth_model) %>% .[,-1] %>% as.data.frame() %>%
+  tibble::rownames_to_column("region") %>%
+  reshape2::melt(id.vars="region") %>%
+  group_by(region) %>%
+  mutate(value=scale(value)) %>% dplyr::rename(target=1,partition=2,OR=3) %>% select(1:3),
+
+
+diet_final_res %>%
+  mutate(Row.names = Row.names %>% as.character()) %>%
+  filter(!is.na(OR)) %>%
+  mutate(OR=log(OR)) %>%
+  group_by(target) %>%
+  mutate(OR=scale(OR))  %>% dplyr::rename(target=1,partition=2,OR=3) %>% select(1:3) ) %>%
+  
+  reshape2::dcast(partition~target, value.var = "OR") %>%
+  tibble::column_to_rownames("partition") %>%
+  as.matrix() %>%
+  t() %>%
+  heatmap(col = hcl.colors(12, "BrBG", rev = TRUE))
 
 
 ```
@@ -623,4 +717,205 @@ ctable
 
 
 ```
+
+
+
+## multinomial regression
+
+we aimed here to predict microbiome partition from metadata. 
+Partition #1, the most centroid in branch structure and highest diversity,
+will be used as reference
+
+
+
+### prepare data
+
+import metadata and merge with UNSD regions
+```{r}
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1] %>% filter(!is.na(Enterotypes_id))
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+
+metadata %>% .[1:5,1:5]
+
+
+data("UNSD_countries")
+
+metadata <- metadata %>% 
+  #select(SAMPLE_NAME, COUNTRY_OF_BIRTH) %>%
+  merge(UNSD_countries %>% 
+          select(`Country or Area`, `Sub-region Name`, `Region Name`) %>% 
+          mutate(`Country or Area` =  gsub("United Kingdom of Great Britain and Northern Ireland", "United Kingdom", `Country or Area`)) %>% 
+          mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
+        by.x="COUNTRY_OF_BIRTH", by.y="Country or Area")
+
+
+
+
+```
+
+
+```{r}
+
+
+variable_to_remove= c("HEIGHT_CM", 
+"WEIGHT_KG",
+"SAMPLE_TYPE",
+"BMI_CAT",
+"HOST_SUBJECT_ID",
+"ANONYMIZED_NAME",
+"ASSIGNED_FROM_GEO",
+"BIRTH_YEAR",
+"DESCRIPTION",
+"DNA_EXTRACTED",
+"HEIGHT_UNITS",
+"WEIGHT_UNITS",
+"SCIENTIFIC_NAME",
+"SURVEY_ID",
+"TAXON_ID",
+"WEIGHT_UNITS",
+"VIOSCREEN_STATUS","VIOSCREEN_SURVEYID","PUBLIC","TITLE","GEO_LOC_NAME")
+
+
+
+
+health_metadata = c("BMI_CAT",
+"ANTIBIOTIC_HISTORY" ,
+"ALZHEIMERS",
+"AUTOIMMUNE",
+"CANCER",
+"DIABETES",
+"IBD",
+"IBS",
+"KIDNEY_DISEASE",
+"ACID_REFLUX",
+"ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF",
+"CARDIOVASCULAR_DISEASE",
+"CDIFF",
+"DEPRESSION_BIPOLAR_SCHIZOPHRENIA",
+"EPILEPSY_OR_SEIZURE_DISORDER",
+"FUNGAL_OVERGROWTH",
+"GLUTEN",
+"LACTOSE",
+"LIVER_DISEASE",
+"LUNG_DISEASE",
+"MENTAL_ILLNESS",
+"MIGRAINE",
+"PKU",
+"SIBO",
+"THYROID")
+
+diet_variables =
+  c("TYPES_OF_PLANTS",
+  "DIET_TYPE",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "SPECIALIZED_DIET_FODMAP",
+  "SPECIALIZED_DIET_EXCLUDE_DAIRY",
+  "SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+  "SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+  "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET",
+  "OLIVE_OIL")
+
+
+
+metadata %>%
+  select(SAMPLE_NAME, contains("_FREQUENCY"), 
+         TYPES_OF_PLANTS, OLIVE_OIL, DIET_TYPE, 
+         contains("SPECIALIZED_DIET_"),
+         all_of(health_metadata),
+         AGE_YEARS, SEX, COLLECTION_SEASON, `Sub-region Name`) %>%
+  select(-SPECIALIZED_DIET_WESTENPRICE_OR_OTHER_LOWGRAIN_LOW_PROCESSED_FO) %>%
+  dplyr::rename(REGION_BIRTH=`Sub-region Name`) %>%
+  reshape2::melt(id.vars="SAMPLE_NAME") %>% 
+  filter(value!="LabControl test") %>%
+  filter(value != "Self-diagnosed") %>%
+  filter(value != "Diagnosed by an alternative medicine practitioner") %>%
+  mutate(value = forcats::fct_recode(value, Never = "Never",
+                                              Rarely = "Rarely (less than once/week)",
+                                              Rarely = "Rarely (a few times/month)",              
+                                              Occasionally = "Occasionally (1-2 times/week)",                 
+                                              Regularly = "Regularly (3-5 times/week)", 
+                                              Daily = "Daily",
+                                              Yes = "true",
+                                              No  = "false",
+                                              Yes = "Diagnosed by a medical professional (doctor, physician assistant)",
+                                              No  = "I do not have this condition" )) %>%
+  mutate(value = forcats::fct_explicit_na(value, "Missing") ) %>%
+  filter(!is.na(value)) %>%
+  mutate(value= value %>% as.character) %>%
+  reshape2::dcast(SAMPLE_NAME~variable, value.var = "value", fill="Missing") %>%
+  mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric) %>%
+  mutate(BOWEL_MOVEMENT_FREQUENCY = forcats::fct_relevel(BOWEL_MOVEMENT_FREQUENCY,ref="One")) %>%
+  mutate(REGION_BIRTH             = forcats::fct_relevel(REGION_BIRTH, ref = "Northern America")) %>%
+  mutate(ANTIBIOTIC_HISTORY       = forcats::fct_relevel(ANTIBIOTIC_HISTORY, ref = "I have not taken antibiotics in the past year.")) %>%
+  merge(enterotypes %>% select(sample_name, Enterotypes_id), by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>% select(-SAMPLE_NAME) -> metadata_enterotypes
+  
+  
+           
+metadata_enterotypes %>% dim
+
+metadata_enterotypes$Enterotypes_id = forcats::fct_relevel(metadata_enterotypes$Enterotypes_id, ref = "m1")
+
+#TO DO : convert ordinal category to numeric
+
+```
+
+
+
+### build model
+```{r}
+
+library(nnet)
+library(GGally)
+library(broom.helpers)
+
+metadata_enterotypes_tmp =  
+  metadata_enterotypes %>%
+  slice_sample(n = 5000, replace = FALSE) %>%
+  na.omit()
+  
+
+
+regm  <- multinom(Enterotypes_id ~ ANTIBIOTIC_HISTORY + BOWEL_MOVEMENT_FREQUENCY + AGE_YEARS + BMI_CAT , data = metadata_enterotypes_tmp)
+regm2 <- step(regm)
+
+#regm2_OR   <- Rfast::odds.ratio(regm2)
+#regm2_tidy <- tidy_plus_plus(regm2, exponentiate = TRUE)
+regm2_plot <- ggcoef_multinom(regm2,exponentiate = TRUE, type = "faceted")
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
