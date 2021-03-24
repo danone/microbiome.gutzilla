@@ -1054,8 +1054,8 @@ metadata_enterotypes_bca$c1 %>%
   mutate(type=ifelse(grepl("GLUTE", metadata),"Gluten",type )) %>%
   mutate(type=ifelse(grepl("COLLE", metadata),"Collection",type )) %>%
   mutate(type=ifelse(grepl("DIET", metadata),"Diet",type )) %>%
-  filter(is.na(type)) %>%
-  filter(abs(value)>0.25)
+  filter(!is.na(type)) %>%
+  filter(abs(value)>1)
 
 ade4::s.class(metadata_enterotypes_bca$ls, fac=as.factor(metadata_enterotypes_num$Enterotypes_id))
 
@@ -1099,16 +1099,24 @@ library(GGally)
 library(broom.helpers)
 
 metadata_enterotypes_tmp =  
-  metadata_enterotypes %>%
+  metadata_enterotypes_num %>%
   #slice_sample(n = 5000, replace = FALSE) %>%
   na.omit()
   
 
 
-regm  <- multinom(Enterotypes_id ~ ANTIBIOTIC_HISTORY + BOWEL_MOVEMENT_FREQUENCY + AGE_YEARS + BMI_CAT + SEX + TYPES_OF_PLANTS , data = metadata_enterotypes_tmp)
+regm  <- multinom(Enterotypes_id ~ ANTIBIOTIC_HISTORY + BOWEL_MOVEMENT_FREQUENCY + 
+                    AGE_YEARS + BMI_CAT + SEX + TYPES_OF_PLANTS + VEGETABLE_FREQUENCY + 
+                    IBD + FROZEN_DESSERT_FREQUENCY +  TEETHBRUSHING_FREQUENCY + REGION_BIRTH + GLUTEN , data = metadata_enterotypes_tmp)
 regm2 <- step(regm)
 
+
+save(regm, file="regm.rda")
+save(regm2, file="regm2.rda")
+
 #regm2_OR   <- Rfast::odds.ratio(regm2)
+#save(regm2_OR, file="regm2_OR.rda")
+
 regm2_tidy <- tidy_plus_plus(regm2, exponentiate = TRUE)
 regm2_plot <- ggcoef_multinom(regm2,exponentiate = TRUE, type = "faceted")
 
