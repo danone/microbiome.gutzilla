@@ -730,7 +730,7 @@ will be used as reference
 
 ### prepare data
 
-import metadata and merge with UNSD regions
+#### import metadata and merge with UNSD regions
 ```{r}
 enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1] %>% filter(!is.na(Enterotypes_id))
 metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
@@ -755,6 +755,8 @@ metadata <- metadata %>%
 
 ```
 
+
+#### clean metadata enterotypes
 
 ```{r}
 
@@ -837,9 +839,9 @@ metadata %>%
   select(SAMPLE_NAME, contains("_FREQUENCY"), 
          TYPES_OF_PLANTS, OLIVE_OIL, DIET_TYPE, 
          contains("SPECIALIZED_DIET_"),
-         all_of(health_metadata),
+         all_of(health_metadata), contains("ALCOHOL_TYPES_"), 
          AGE_YEARS, SEX, COLLECTION_SEASON, `Sub-region Name`) %>%
-  select(-SPECIALIZED_DIET_WESTENPRICE_OR_OTHER_LOWGRAIN_LOW_PROCESSED_FO) %>%
+  select(-SPECIALIZED_DIET_WESTENPRICE_OR_OTHER_LOWGRAIN_LOW_PROCESSED_FO, -ALCOHOL_TYPES_UNSPECIFIED) %>%
   dplyr::rename(REGION_BIRTH=`Sub-region Name`) %>%
   reshape2::melt(id.vars="SAMPLE_NAME") %>% 
   filter(value!="LabControl test") %>%
@@ -874,6 +876,217 @@ metadata_enterotypes$Enterotypes_id = forcats::fct_relevel(metadata_enterotypes$
 
 #TO DO : convert ordinal category to numeric
 
+
+
+  
+
+
+
+```
+#### clean metadata enterotypes numerical
+
+```{r}
+metadata %>%
+  select(SAMPLE_NAME, contains("_FREQUENCY"), 
+         TYPES_OF_PLANTS, OLIVE_OIL, DIET_TYPE, 
+         contains("SPECIALIZED_DIET_"),
+         all_of(health_metadata),BMI, contains("ALCOHOL_TYPES_"),
+         AGE_YEARS, SEX, COLLECTION_SEASON, `Sub-region Name`) %>%
+  select(-SPECIALIZED_DIET_WESTENPRICE_OR_OTHER_LOWGRAIN_LOW_PROCESSED_FO, -BMI_CAT, -ALCOHOL_TYPES_UNSPECIFIED) %>%
+  dplyr::rename(REGION_BIRTH=`Sub-region Name`) %>% #select(-SAMPLE_NAME) %>% apply(2,table)
+  reshape2::melt(id.vars=c("SAMPLE_NAME","DIET_TYPE","COLLECTION_SEASON","REGION_BIRTH","GLUTEN")) %>% 
+  mutate(value= ifelse(value %in% c("LabControl test",
+                                    "other",
+                                    "Self-diagnosed",
+                                    "Diagnosed by an alternative medicine practitioner"),NA,value)) %>%
+  mutate(value = forcats::fct_recode(value,   `1` = "Never",
+                                              `2` = "Rarely (less than once/week)",
+                                              `2` = "Rarely (a few times/month)",              
+                                              `3` = "Occasionally (1-2 times/week)",                 
+                                              `4` = "Regularly (3-5 times/week)", 
+                                              `5` = "Daily",
+                                              `1` = "true",
+                                              `0` = "false",
+                                              `1` = "Yes",
+                                              `0` = "No",
+                                              `1` = "Diagnosed by a medical professional (doctor, physician assistant)",
+                                              `0` = "I do not have this condition",
+                                              `0` = "female",
+                                              `1` = "male",
+                                              `1` = "I have not taken antibiotics in the past year.",
+                                              `2` = "Year",
+                                              `3` = "6 months",
+                                              `4` = "Month",
+                                              `5` = "Week",
+                                              `1` = "Less than 5",
+                                              `2` = "6 to 10",
+                                              `3` = "11 to 20",              
+                                              `4` = "21 to 30",                 
+                                              `5` = "More than 30", 
+                                              `0` = "Less than one",
+                                              `1` = "One",
+                                              `2` = "Two",
+                                              `3` = "Three",              
+                                              `4` = "Four",                 
+                                              `5` = "Five or more"
+                                       
+                                       
+                                       )) %>%
+  mutate(value= value %>% as.character %>% as.numeric) %>%
+  group_by(variable) %>%
+  mutate(value = ifelse(is.na(value),mean(value,na.rm = TRUE),value)) %>% #slice_sample(prop=0.1)
+  reshape2::dcast(SAMPLE_NAME+DIET_TYPE+COLLECTION_SEASON+REGION_BIRTH+GLUTEN~variable, value.var = "value", fill="Missing") %>%
+  mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric) %>%
+  mutate(REGION_BIRTH             = forcats::fct_relevel(REGION_BIRTH, ref = "Northern America")) %>%
+  merge(enterotypes %>% select(sample_name, Enterotypes_id), by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>% select(-SAMPLE_NAME) -> metadata_enterotypes_num
+
+metadata_enterotypes_num %>%
+  select(-DIET_TYPE,-COLLECTION_SEASON,-REGION_BIRTH,-Enterotypes_id,-GLUTEN) %>%
+  mutate_all(as.numeric) %>% cor(method="spearman") %>% .^2 %>% sqrt() %>% heatmap
+   
+
+```
+#### metadata enterotypes correspondance analysis
+
+
+```{r}
+
+cbind(metadata_enterotypes_num %>%
+  select(-DIET_TYPE,-COLLECTION_SEASON,-REGION_BIRTH,-Enterotypes_id,-GLUTEN) %>%
+  mutate_all(as.numeric),
+
+metadata_enterotypes_num %>%
+  select(DIET_TYPE,COLLECTION_SEASON,REGION_BIRTH,Enterotypes_id,GLUTEN) %>%
+  mutate_all(as.character) %>%
+  mutate_all(function(x){ifelse(is.na(x),"Missing",x)}) %>%
+  mutate_all(as.factor)) %>%
+  select(-Enterotypes_id) %>%
+  ade4::dudi.mix(scannf=FALSE, nf=32) -> metadata_enterotypes_coa
+
+metadata_enterotypes_num %>%
+  select(-DIET_TYPE,-COLLECTION_SEASON,-REGION_BIRTH,-Enterotypes_id,-GLUTEN) %>%
+  mutate_all(as.numeric) %>%
+  ade4::dudi.mix(scannf=FALSE, nf=30) -> metadata_enterotypes_pca
+
+
+ade4::scatter(metadata_enterotypes_coa)
+
+
+cumsum(metadata_enterotypes_coa$eig/sum(metadata_enterotypes_coa$eig))
+
+ade4::s.corcircle(metadata_enterotypes_coa$co)
+
+
+metadata_enterotypes_coa$co %>% .[1:4] %>%
+  tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata")  %>%
+  ggplot() + geom_bar(aes(x=metadata,y=value), stat = "identity") + 
+  facet_wrap(~variable, ncol = 4) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+
+metadata_enterotypes_coa$li %>%
+  cbind(metadata_enterotypes_num) %>%
+  ggplot() + geom_point(aes(x=Axis1, y=Axis2, col=Enterotypes_id))
+
+
+metadata_enterotypes_coa$co %>% .[1:32] %>%
+  tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata")  %>%
+  filter(abs(value)>0.5)
+
+
+cumsum(metadata_enterotypes_pca$eig/sum(metadata_enterotypes_pca$eig))
+
+metadata_enterotypes_pca$c1 %>% .[1:24] %>%
+  tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata")  %>%
+  mutate(type=NA) %>%
+  mutate(type=ifelse(grepl("REGIO", metadata),"Region",type )) %>%
+  mutate(type=ifelse(grepl("GLUTE", metadata),"Gluten",type )) %>%
+  mutate(type=ifelse(grepl("COLLE", metadata),"Collection",type )) %>%
+  mutate(type=ifelse(grepl("DIET", metadata),"Diet",type )) %>%
+  filter(is.na(type)) %>%
+  filter(abs(value)>0.25) %>%
+  ggplot() + geom_bar(aes(x=metadata,y=value), stat = "identity") + 
+  facet_wrap(~variable, ncol = 6, scales = "free_x") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+metadata_enterotypes_pca$li %>%
+  cbind(metadata_enterotypes_num) %>%
+  ggplot() + geom_point(aes(x=Axis1, y=Axis2, col=Enterotypes_id))
+
+metadata_enterotypes_pca$c1 %>% .[1:23] %>%
+  tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata")  %>%
+  filter(abs(value)>0.25)
+
+
+metadata_enterotypes_bca = ade4::bca(metadata_enterotypes_coa, fac=as.factor(metadata_enterotypes_num$Enterotypes_id), nf=18, scannf=FALSE)
+
+metadata_enterotypes_bca_randtest = ade4::randtest(metadata_enterotypes_bca)
+
+cumsum(metadata_enterotypes_bca$eig/sum(metadata_enterotypes_bca$eig))
+
+
+metadata_enterotypes_bca$c1 %>%
+  tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata")  %>%
+  mutate(type=NA) %>%
+  mutate(type=ifelse(grepl("REGIO", metadata),"Region",type )) %>%
+  mutate(type=ifelse(grepl("GLUTE", metadata),"Gluten",type )) %>%
+  mutate(type=ifelse(grepl("COLLE", metadata),"Collection",type )) %>%
+  mutate(type=ifelse(grepl("DIET", metadata),"Diet",type )) %>%
+  filter(is.na(type)) %>%
+  filter(abs(value)>0.25) %>%
+  ggplot() + geom_bar(aes(x=metadata,y=value), stat = "identity") + 
+  facet_wrap(~variable, ncol = 6, scales = "free_x") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+metadata_enterotypes_bca$c1 %>%
+  tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata")  %>%
+  mutate(type=NA) %>%
+  mutate(type=ifelse(grepl("REGIO", metadata),"Region",type )) %>%
+  mutate(type=ifelse(grepl("GLUTE", metadata),"Gluten",type )) %>%
+  mutate(type=ifelse(grepl("COLLE", metadata),"Collection",type )) %>%
+  mutate(type=ifelse(grepl("DIET", metadata),"Diet",type )) %>%
+  filter(is.na(type)) %>%
+  filter(abs(value)>0.25)
+
+ade4::s.class(metadata_enterotypes_bca$ls, fac=as.factor(metadata_enterotypes_num$Enterotypes_id))
+
+ade4::s.label(metadata_enterotypes_bca$li)
+
+
+
+
+```
+
+
+
+#### alcool types explo
+```{r}
+
+library(UpSetR)
+
+alcohol_types_list = list(BEERCIDER   = metadata %>% filter(ALCOHOL_TYPES_BEERCIDER == "Yes") %>% pull(SAMPLE_NAME),
+                          SPIRITSHARD = metadata %>% filter(ALCOHOL_TYPES_SPIRITSHARD_ALCOHOL == "Yes") %>% pull(SAMPLE_NAME),
+                          RED_WINE    = metadata %>% filter(ALCOHOL_TYPES_RED_WINE == "Yes") %>% pull(SAMPLE_NAME),
+                          SOUR_BEERS  = metadata %>% filter(ALCOHOL_TYPES_SOUR_BEERS == "Yes") %>% pull(SAMPLE_NAME),
+                          WHITE_WINE  = metadata %>% filter(ALCOHOL_TYPES_WHITE_WINE == "Yes") %>% pull(SAMPLE_NAME),
+                          UNSPECIFIED = metadata %>% filter(ALCOHOL_TYPES_UNSPECIFIED  == "Yes") %>% pull(SAMPLE_NAME))
+
+upset(alcohol_types_list)
+
+metadata %>%
+  select(contains("ALCOHOL_TYPES_"), -ALCOHOL_TYPES_UNSPECIFIED) %>%
+  mutate_all(function(x) ifelse(x=="Yes",1,0)) %>% 
+upset(group.by = "sets",cutoff = 3)
+
 ```
 
 
@@ -887,20 +1100,20 @@ library(broom.helpers)
 
 metadata_enterotypes_tmp =  
   metadata_enterotypes %>%
-  slice_sample(n = 5000, replace = FALSE) %>%
+  #slice_sample(n = 5000, replace = FALSE) %>%
   na.omit()
   
 
 
-regm  <- multinom(Enterotypes_id ~ ANTIBIOTIC_HISTORY + BOWEL_MOVEMENT_FREQUENCY + AGE_YEARS + BMI_CAT , data = metadata_enterotypes_tmp)
+regm  <- multinom(Enterotypes_id ~ ANTIBIOTIC_HISTORY + BOWEL_MOVEMENT_FREQUENCY + AGE_YEARS + BMI_CAT + SEX + TYPES_OF_PLANTS , data = metadata_enterotypes_tmp)
 regm2 <- step(regm)
 
 #regm2_OR   <- Rfast::odds.ratio(regm2)
-#regm2_tidy <- tidy_plus_plus(regm2, exponentiate = TRUE)
+regm2_tidy <- tidy_plus_plus(regm2, exponentiate = TRUE)
 regm2_plot <- ggcoef_multinom(regm2,exponentiate = TRUE, type = "faceted")
 
-
-
+save(regm2_tidy, file="regm2_tidy.rda")
+save(regm2_plot, file="regm2_plot.rda")
 
 
 ```
