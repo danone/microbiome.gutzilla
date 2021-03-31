@@ -35,7 +35,7 @@ metadata <- metadata %>%
           mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
           mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
           mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
-        by.x="COUNTRY_OF_BIRTH", by.y="Country or Area")
+        by.x="COUNTRY_OF_BIRTH", by.y="Country or Area", all.x = TRUE)
 
 
 
@@ -748,7 +748,7 @@ metadata <- metadata %>%
           mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
           mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
           mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
-        by.x="COUNTRY_OF_BIRTH", by.y="Country or Area")
+        by.x="COUNTRY_OF_BIRTH", by.y="Country or Area", all.x = TRUE)
 
 
 
@@ -886,6 +886,9 @@ metadata_enterotypes$Enterotypes_id = forcats::fct_relevel(metadata_enterotypes$
 #### clean metadata enterotypes numerical
 
 ```{r}
+
+range0_1 = function(x) {(x-min(x, na.rm = TRUE))/(max(x, na.rm="TRUE")-min(x,na.rm = TRUE))}
+
 metadata %>%
   select(SAMPLE_NAME, contains("_FREQUENCY"), 
          TYPES_OF_PLANTS, OLIVE_OIL, DIET_TYPE, 
@@ -894,17 +897,19 @@ metadata %>%
          AGE_YEARS, SEX, COLLECTION_SEASON, `Sub-region Name`) %>%
   select(-SPECIALIZED_DIET_WESTENPRICE_OR_OTHER_LOWGRAIN_LOW_PROCESSED_FO, -BMI_CAT, -ALCOHOL_TYPES_UNSPECIFIED) %>%
   dplyr::rename(REGION_BIRTH=`Sub-region Name`) %>% #select(-SAMPLE_NAME) %>% apply(2,table)
-  reshape2::melt(id.vars=c("SAMPLE_NAME","DIET_TYPE","COLLECTION_SEASON","REGION_BIRTH","GLUTEN")) %>% 
+  tidyext::onehot(var = c("REGION_BIRTH","GLUTEN","COLLECTION_SEASON")) %>%
+  select(-GLUTEN_No) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME")) %>% 
   mutate(value= ifelse(value %in% c("LabControl test",
                                     "other",
                                     "Self-diagnosed",
                                     "Diagnosed by an alternative medicine practitioner"),NA,value)) %>%
-  mutate(value = forcats::fct_recode(value,   `1` = "Never",
-                                              `2` = "Rarely (less than once/week)",
-                                              `2` = "Rarely (a few times/month)",              
-                                              `3` = "Occasionally (1-2 times/week)",                 
-                                              `4` = "Regularly (3-5 times/week)", 
-                                              `5` = "Daily",
+  mutate(value = forcats::fct_recode(value,   `0` = "Never",
+                                              `0.25` = "Rarely (less than once/week)",
+                                              `0.25` = "Rarely (a few times/month)",              
+                                              `0.5` = "Occasionally (1-2 times/week)",                 
+                                              `0.75` = "Regularly (3-5 times/week)", 
+                                              `1` = "Daily",
                                               `1` = "true",
                                               `0` = "false",
                                               `1` = "Yes",
@@ -913,41 +918,139 @@ metadata %>%
                                               `0` = "I do not have this condition",
                                               `0` = "female",
                                               `1` = "male",
-                                              `1` = "I have not taken antibiotics in the past year.",
-                                              `2` = "Year",
-                                              `3` = "6 months",
-                                              `4` = "Month",
-                                              `5` = "Week",
-                                              `1` = "Less than 5",
-                                              `2` = "6 to 10",
-                                              `3` = "11 to 20",              
-                                              `4` = "21 to 30",                 
-                                              `5` = "More than 30", 
+                                              `0` = "I have not taken antibiotics in the past year.",
+                                              `0.25` = "Year",
+                                              `0.5` = "6 months",
+                                              `0.75` = "Month",
+                                              `1` = "Week",
+                                              `0` = "Less than 5",
+                                              `0.25` = "6 to 10",
+                                              `0.5` = "11 to 20",              
+                                              `0.75` = "21 to 30",                 
+                                              `1` = "More than 30", 
                                               `0` = "Less than one",
-                                              `1` = "One",
-                                              `2` = "Two",
-                                              `3` = "Three",              
-                                              `4` = "Four",                 
-                                              `5` = "Five or more"
+                                              `0.2` = "One",
+                                              `0.4` = "Two",
+                                              `0.6` = "Three",              
+                                              `0.6` = "Four",                 
+                                              `1` = "Five or more",
+                                              `0` = "Omnivore" ,
+                                              `0.25` = "Omnivore but do not eat red meat",
+                                              `0.5` = "Vegetarian but eat seafood",              
+                                              `0.75` = "Vegetarian",                 
+                                              `1` = "Vegan"
+                                    
                                        
                                        
                                        )) %>%
   mutate(value= value %>% as.character %>% as.numeric) %>%
   group_by(variable) %>%
   mutate(value = ifelse(is.na(value),mean(value,na.rm = TRUE),value)) %>% #slice_sample(prop=0.1)
-  reshape2::dcast(SAMPLE_NAME+DIET_TYPE+COLLECTION_SEASON+REGION_BIRTH+GLUTEN~variable, value.var = "value", fill="Missing") %>%
-  mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric) %>%
-  mutate(REGION_BIRTH             = forcats::fct_relevel(REGION_BIRTH, ref = "Northern America")) %>%
+  reshape2::dcast(SAMPLE_NAME~variable, value.var = "value", fill="Missing") %>%
+  mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric %>% range0_1() ) %>%
+  mutate(BMI = BMI %>% as.character() %>% as.numeric %>% range0_1() ) %>%
+  #mutate(AGE_YEARS = ifelse(is.na(AGE_YEARS),mean(AGE_YEARS,na.rm = TRUE),value)) %>%
+  #mutate(REGION_BIRTH             = forcats::fct_relevel(REGION_BIRTH, ref = "Northern America")) %>%
   merge(enterotypes %>% select(sample_name, Enterotypes_id), by.y="sample_name", by.x="SAMPLE_NAME") %>%
   mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>% select(-SAMPLE_NAME) -> metadata_enterotypes_num
 
 metadata_enterotypes_num %>%
-  select(-DIET_TYPE,-COLLECTION_SEASON,-REGION_BIRTH,-Enterotypes_id,-GLUTEN) %>%
-  mutate_all(as.numeric) %>% cor(method="spearman") %>% .^2 %>% sqrt() %>% heatmap
+  select(-Enterotypes_id) %>%
+  mutate_all(as.numeric) %>% cor(method="spearman") %>%
+  .^2 %>% sqrt() %>% heatmap
    
 
 ```
 #### metadata enterotypes correspondance analysis
+
+
+```{r}
+
+metadata_enterotypes_num %>%
+  select(-Enterotypes_id) %>%
+  mutate_all(as.numeric) %>%
+  ade4::dudi.pca(scannf=F,nf=30) -> metadata_enterotypes_num_pca
+
+
+cumsum(metadata_enterotypes_num_pca$eig/sum(metadata_enterotypes_num_pca$eig))
+
+metadata_enterotypes_num_pca$co %>% .[1:30] %>%
+  tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata")  %>%
+  ggplot() + geom_bar(aes(x=metadata,y=value), stat = "identity") + 
+  facet_wrap(~variable, ncol = 10) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+
+metadata_enterotypes_num_pca$co %>% .[1:30] %>%
+  tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata") %>%
+  group_by(variable) %>%
+  mutate(value_w=abs(value)) %>%
+  group_by(variable) %>%
+  mutate(value_tot = sum(value_w)) %>%
+  group_by(variable) %>%
+  mutate(value_w=value_w/value_tot) %>%
+  group_by(variable) %>%
+  mutate(value_tot = sum(value_tot)) %>%
+  arrange(variable,desc(value_w)) %>%
+  group_by(variable) %>%
+  mutate(value_cum = cumsum(value_w)) %>%
+  filter(value_cum < 0.25) %>%
+  pull(metadata) %>% unique()
+ 
+metadata_enterotypes_num_pca$co %>% .[1:30] %>%
+  tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata") %>%
+  group_by(variable) %>%
+  mutate(value_w=abs(value)) %>%
+  group_by(variable) %>%
+  mutate(value_tot = sum(value_w)) %>%
+  group_by(variable) %>%
+  mutate(value_w=value_w/value_tot) %>%
+  group_by(variable) %>%
+  mutate(value_tot = sum(value_tot)) %>%
+  arrange(variable,desc(value_w)) %>%
+  group_by(variable) %>%
+  mutate(value_cum = cumsum(value_w)) %>%
+  group_by(variable) %>%
+  slice_max(abs(value), n = 2) %>%
+  pull(metadata) %>% unique()
+
+
+
+
+  metadata_enterotypes_num_bca= ade4::bca(metadata_enterotypes_num_pca, fac=metadata_enterotypes_num$Enterotypes_id %>% as.character() %>% as.factor(), scannf=F, n=30) 
+
+  #ade4::randtest(metadata_enterotypes_num_bca)
+  
+  
+  metadata_enterotypes_num_bca$co %>%
+    tibble::rownames_to_column("metadata") %>%
+  reshape2::melt(id.vars="metadata") %>%
+  group_by(variable) %>%
+  mutate(value_w=abs(value)) %>%
+  group_by(variable) %>%
+  mutate(value_tot = sum(value_w)) %>%
+  group_by(variable) %>%
+  mutate(value_w=value_w/value_tot) %>%
+  group_by(variable) %>%
+  mutate(value_tot = sum(value_tot)) %>%
+  arrange(variable,desc(value_w)) %>%
+  group_by(variable) %>%
+  mutate(value_cum = cumsum(value_w)) %>%
+  group_by(variable) %>%
+  slice_max(abs(value), n = 5) %>%
+  #filter(value_cum < 0.05) %>%   
+  #filter(abs(value)> 0.1) %>%  
+  pull(metadata) %>% unique()
+    
+  
+dim(metadata_enterotypes_num)  
+
+```
+
 
 
 ```{r}
@@ -1100,14 +1203,23 @@ library(broom.helpers)
 
 metadata_enterotypes_tmp =  
   metadata_enterotypes_num %>%
+  mutate(ANTIBIOTIC_HISTORY = ANTIBIOTIC_HISTORY %>% as.numeric,
+         BOWEL_MOVEMENT_FREQUENCY = BOWEL_MOVEMENT_FREQUENCY %>% as.numeric,
+         AGE_YEARS = AGE_YEARS %>% as.numeric,
+         SEX = SEX %>% as.numeric,
+         TYPES_OF_PLANTS = TYPES_OF_PLANTS %>% as.numeric,
+         VEGETABLE_FREQUENCY = VEGETABLE_FREQUENCY %>% as.numeric,
+         IBD = IBD %>% as.numeric,
+         FROZEN_DESSERT_FREQUENCY = FROZEN_DESSERT_FREQUENCY %>% as.numeric,
+         TEETHBRUSHING_FREQUENCY = TEETHBRUSHING_FREQUENCY %>% as.numeric) %>%
   #slice_sample(n = 5000, replace = FALSE) %>%
   na.omit()
   
 
 
 regm  <- multinom(Enterotypes_id ~ ANTIBIOTIC_HISTORY + BOWEL_MOVEMENT_FREQUENCY + 
-                    AGE_YEARS + BMI_CAT + SEX + TYPES_OF_PLANTS + VEGETABLE_FREQUENCY + 
-                    IBD + FROZEN_DESSERT_FREQUENCY +  TEETHBRUSHING_FREQUENCY + REGION_BIRTH + GLUTEN , data = metadata_enterotypes_tmp)
+                    AGE_YEARS + SEX + TYPES_OF_PLANTS + VEGETABLE_FREQUENCY + 
+                    IBD + FROZEN_DESSERT_FREQUENCY +  TEETHBRUSHING_FREQUENCY + REGION_BIRTH + GLUTEN , data = metadata_enterotypes_tmp) #MaxNWts = 1026
 regm2 <- step(regm)
 
 
@@ -1124,6 +1236,51 @@ save(regm2_tidy, file="regm2_tidy.rda")
 save(regm2_plot, file="regm2_plot.rda")
 
 
+#regm2_plot$data %>% ggcoef_plot(facet_col="y.level", exponentiate = TRUE)
+
+
+```
+
+
+```{r}
+library(nnet)
+library(GGally)
+library(broom.helpers)
+
+metadata_enterotypes_tmp =  
+  metadata_enterotypes_num %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% forcats::fct_relevel(ref = "m1")) %>%
+  mutate_if(is.character, as.numeric) %>%
+  na.omit()
+  
+
+
+regm  <- multinom(Enterotypes_id ~ . , data = metadata_enterotypes_tmp, MaxNWts = 1938) 
+
+regm_tidy <- tidy_plus_plus(regm, exponentiate = TRUE)
+
+save(regm_tidy, file="regm_tidy.rda")
+
+# regm2 <- step(regm)
+# 
+# save(regm, file="regm.rda")
+# save(regm2, file="regm2.rda")
+# 
+# 
+# regm2_tidy <- tidy_plus_plus(regm2, exponentiate = TRUE)
+# 
+# save(regm2_tidy, file="regm2_tidy.rda")
+# 
+# 
+# 
+# exp(coef(regm))
+# 
+# ctable <- coef(summary(regm))
+# 
+# p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+# ctable <- cbind(ctable, "p value" = p)
+
+
 ```
 
 
@@ -1131,11 +1288,173 @@ save(regm2_plot, file="regm2_plot.rda")
 
 
 
+```{r}
+
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "agp")
+
+shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
+
+
+merge(enterotypes,shannon,by.x="sample_name", by.y="row.names") %>%
+  group_by(Enterotypes_id) %>%
+  summarise(shannon_median=median(shannon)) %>%
+  mutate(Enterotypes_id = paste0("m",Enterotypes_id))-> enterotypes_shannon_median
 
 
 
 
+coef(regm) %>% 
+  reshape2::melt() %>% 
+  filter(Var2 != "(Intercept)") %>% 
+  merge(enterotypes_shannon_median, by.x="Var1", by.y="Enterotypes_id") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Var1 %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Var1 %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Var1 %in% c("m13"), "Akkermansia DMM types",branch)) %>%
+  mutate(Var1 = Var1 %>% forcats::fct_reorder(shannon_median)) %>% 
+  ggplot() + geom_point(aes(x=Var1,y=10^value, col=branch)) + scale_y_log10() + facet_wrap(~Var2, scale="free_y")
 
+
+
+regm_tidy %>% 
+  merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m13"), "Akkermansia DMM types",branch)) %>%
+  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median)) %>%
+  ggplot() + geom_point(aes(x=y.level,y=estimate, col=branch, alpha=p.value<0.05)) + scale_y_continuous(trans = "log") + facet_wrap(~term, scale="free_y")
+
+
+regm_tidy %>% 
+  merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m13"), "Akkermansia DMM types",branch)) %>%
+  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median)) %>%
+  filter(p.value < 0.05) %>%
+  ggplot() + geom_point(aes(x=term,y=log(estimate), col=branch)) + 
+  #scale_y_continuous(trans = "log") + 
+  facet_wrap(~y.level, scale="free_x", nrow=2) + coord_flip() + theme_classic() + geom_hline(yintercept = 0)
+
+
+```
+
+### data viz
+
+```{r fig.height=12, fig.width=13}
+
+# regm_tidy %>% 
+#   merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
+#   mutate(branch ="Clostridiales DMM types") %>%
+#   mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+#   mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+#   mutate(branch = ifelse(y.level %in% c("m13"), "Akkermansia DMM types",branch)) %>%
+#   mutate(estimate = log(estimate)) %>%
+#   #mutate(estimate = ifelse(p.value>0.05,0,estimate)) %>%
+#   group_by(variable) %>%
+#   mutate(s=mean(abs(estimate))) %>% 
+#   filter(s>0) %>%
+#   mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median)) %>%
+#   mutate(variable = variable %>% forcats::fct_reorder(s)) %>%
+#   ggplot() + geom_tile(aes(x=y.level, y=variable, fill=estimate)) + scale_fill_gradient2() + facet_grid(.~branch, scale="free_x", space = "free_x")
+  
+  
+  regm_tidy %>%
+    mutate(variable_group = "disease") %>%
+    mutate(variable_group = 
+             case_when(grepl("FREQUENCY", variable) ~ "Diet, demographic and lifestyle",
+                       grepl("ALCOHOL", variable) ~ "Diet, demographic and lifestyle",
+                       variable %in% c("AGE_YEARS","SEX","DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet, demographic and lifestyle",
+                       grepl("SPECIALIZED", variable) ~"Specialized Diet",
+                       grepl("REGION", variable) ~ "Region of Birth",
+                       TRUE ~ "Health associated"
+                            )) %>%
+    merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
+  mutate(estimate = log(estimate)) %>%
+  mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+  group_by(variable) %>%
+  mutate(s=mean(abs(estimate2))) %>% 
+  filter(s>0) %>%
+  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median)) %>%
+  mutate(variable = variable %>% forcats::fct_reorder(s)) %>%
+  ggplot() + 
+    geom_tile(aes(x=y.level, y=variable, fill=estimate)) + 
+    geom_point(aes(x=y.level, y=variable, alpha=p.value<0.05)) + 
+    scale_fill_gradient2("Log OR") +
+    facet_grid(variable_group~branch, scale="free", space = "free") + 
+  xlab("Microbiome partition\nordered by branch and by alpha-diversity") + ylab("")
+    
+  ggsave("partitions_multinomial_logOR.pdf", height = 12, width = 13)
+  
+  
+  # reshape2::dcast(y.level~variable, value.var = "estimate") %>%
+  # tibble::column_to_rownames("y.level") %>%
+  # as.matrix() %>%
+  # t() %>%
+  # heatmap(scale = "none", col = cm.colors(256))
+
+
+```
+
+
+
+
+```{r}
+
+
+  
+  Z = model.matrix(object)
+    probs <- object$fitted # avoid napredict from fitted.default
+    coefs <- coef(object)
+    if (is.vector(coefs)){ # ie there are only 2 response categories
+        coefs <- t(as.matrix(coefs))
+        probs <- cbind(1 - probs, probs)
+    }
+    coefdim <- dim(coefs)
+    p <- coefdim[2L]
+    k <- coefdim[1L]
+    ncoefs <- k * p
+    kpees <- rep(p, k)
+    n <- dim(Z)[1L]
+##  Now compute the observed (= expected, in this case) information,
+##  e.g. as in T Amemiya "Advanced Econometrics" (1985) pp295-6.
+##  Here i and j are as in Amemiya, and x, xbar are vectors
+##  specific to (i,j) and to i respectively.
+    info <- matrix(0, ncoefs, ncoefs)
+    Names <- dimnames(coefs)
+    if (is.null(Names[[1L]])) {Names <- Names[[2L]] } else {
+      Names <- as.vector(outer(Names[[2L]], Names[[1L]],
+                             function(name2, name1)
+                                 paste(name1, name2, sep = ":")))}
+    dimnames(info) <- list(Names, Names)
+    x0 <- matrix(0, p, k+1L)
+    row.totals <- object$weights
+    pb <- txtProgressBar(min=1,max=n)
+    for (i in seq_len(n)) {
+      
+        Zi <- Z[i, ]
+        xbar <- Zi * rep(probs[i, -1, drop = FALSE], kpees)
+        for (j in seq_len(k+1)){
+            x <- x0
+            x[, j] <- Zi
+            x <- x[, -1, drop = FALSE]
+            x <- x - xbar
+            dim(x) <- c(1, ncoefs)
+            info <- info + (row.totals[i] * probs[i, j] * crossprod(x))
+        }
+        setTxtProgressBar(pb, i)
+    }
+    info
+
+
+
+```
 
 
 
