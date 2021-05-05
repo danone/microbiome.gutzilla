@@ -18,7 +18,7 @@ devtools::load_all(reset = FALSE)
 ## load genus abundance
 ```{r}
 
-genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "gutzilla")
 
 genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
 
@@ -89,7 +89,7 @@ genus_prop[bifidobacterium_GG,] %>%
 
 ```{r}
 
-metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "gutzilla"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
 
 metadata %>%
   select(SAMPLE_NAME,AGE_CAT) %>%
@@ -117,6 +117,19 @@ metadata %>%
   stat_summary(aes(x=AGE_CAT, y=Bifidobacterium), fun.y="median", geom="point")+
   scale_y_log10()
 
+
+metadata %>%
+  select(SAMPLE_NAME,AGE_CAT) %>%
+  merge(bif_df, by="SAMPLE_NAME") %>%
+  filter(AGE_CAT!="baby") %>%
+  mutate(AGE_CAT = ifelse(AGE_CAT=="child","03+",AGE_CAT)) %>%
+  mutate(AGE_CAT = ifelse(AGE_CAT=="teen","10s",AGE_CAT)) %>%
+  na.omit() %>%
+  filter(Bifidobacterium>0) %>%
+  ggplot()  + 
+  ggforce::geom_sina(aes(x=AGE_CAT, y=Bifidobacterium), size=.01) + 
+  stat_summary(aes(x=AGE_CAT, y=Bifidobacterium),col="red", fun.y="median", geom="point")+
+  scale_y_log10()
 
 
 
@@ -513,7 +526,6 @@ createTable(res, show.ratio = TRUE, show.p.mul=TRUE) %>% export2word(file="bif_c
 
 ### select bacteroides branch
 ```{r}
-
 # Bacteroides-> Clostridiales : c(11,15,6,8,10,3,4,2, 1, 5)
 
 rbind(diet_melt, health_melt) %>%
@@ -570,9 +582,90 @@ data.frame(bacteroides_tab$descr, branch="bacteroides") %>%
   mutate(OR = OR %>% as.numeric) %>%
   select(-a) %>%
   reshape2::dcast(variable~branch, value.var = "OR") %>%
-  filter((prevotella<0.75 & bacteroides > 1.25) | (prevotella>1.25 & bacteroides < 0.75 ))
+  filter(abs(log2(bacteroides/prevotella))>1) %>% pull(variable) -> select_variable
+```
 
 
+```{r fig.height=10, fig.width=8}
+data.frame(bacteroides_tab$descr, branch="bacteroides") %>% 
+  as.data.frame %>%
+  tibble::rownames_to_column("variable") %>%
+  rbind(data.frame(prevotella_tab$descr,branch="prevotella") %>% as.data.frame %>% tibble::rownames_to_column("variable")) %>%
+  select(variable,OR,p.ratio, branch) %>%
+  filter(OR != "Ref.") %>%
+  tidyr::separate(OR, into=c("OR","a"), sep = "\\[") %>%
+  mutate(OR = OR %>% as.numeric, p.ratio = p.ratio %>% as.character %>% gsub("<","",.) %>% as.numeric) %>%
+  select(-a) %>%
+  na.omit() %>%
+  ggplot() + geom_bar(aes(y=OR,alpha=p.ratio<0.05,fill=branch,x=variable), stat="identity", position="dodge")+
+  scale_y_continuous(trans="log2") +
+  coord_flip() + facet_wrap(~branch)
+```
+
+
+```{r fig.height=5, fig.width=8}
+data.frame(bacteroides_tab$descr, branch="bacteroides") %>% 
+  as.data.frame %>%
+  tibble::rownames_to_column("variable") %>%
+  rbind(data.frame(prevotella_tab$descr,branch="prevotella") %>% as.data.frame %>% tibble::rownames_to_column("variable")) %>%
+  select(variable,OR,p.ratio, branch) %>%
+  filter(OR != "Ref.") %>%
+  tidyr::separate(OR, into=c("OR","a"), sep = "\\[") %>%
+  mutate(OR = OR %>% as.numeric, p.ratio = p.ratio %>% as.character %>% gsub("<","",.) %>% as.numeric) %>%
+  select(-a) %>%
+  na.omit() %>%
+  filter(variable %in% select_variable) %>%
+  ggplot() + geom_bar(aes(y=OR,alpha=p.ratio<0.05,fill=branch,x=variable), stat="identity", position="dodge")+
+  scale_y_continuous(trans="log2") +
+  coord_flip() + facet_wrap(~branch)
+
+
+```
+
+
+## by country of birth
+
+```{r}
+
+
+data("UNSD_countries")
+
+metadata = readr::read_csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"))
+
+#to do: check issue parsing IBD variables
+
+colnames(metadata) = stringr::str_to_lower(colnames(metadata))
+
+
+
+metadata %>%
+  select(country_of_birth) %>%
+  merge(UNSD_countries %>% 
+          select(`Country or Area`, `Sub-region Name`, `Region Name`) %>% 
+          mutate(`Country or Area` =  gsub("United Kingdom of Great Britain and Northern Ireland", "United Kingdom", `Country or Area`)) %>% 
+          mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
+        by.x="country_of_birth", by.y="Country or Area") %>% 
+  group_by(`Region Name`,`Sub-region Name`) %>% summarise(n=n()) %>%
+  ungroup() %>%
+  ggplot() + geom_bar(aes(y=n, x=`Sub-region Name`), stat="identity") + scale_y_log10() +
+  facet_wrap(~`Region Name`, scales = "free_x", nr=1) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  xlab("Region of Birth\n(United Nations-m49)") +
+  ylab("Number of stool sample")
+  
+ggsave("Region_of_birth.pdf")
+
+metadata <- metadata %>%
+  merge(UNSD_countries %>% 
+          select(`Country or Area`, `Sub-region Name`, `Region Name`) %>% 
+          mutate(`Country or Area` =  gsub("United Kingdom of Great Britain and Northern Ireland", "United Kingdom", `Country or Area`)) %>% 
+          mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
+        by.x="country_of_birth", by.y="Country or Area")
+  
 
 
 
