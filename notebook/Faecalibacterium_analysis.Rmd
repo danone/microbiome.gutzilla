@@ -117,6 +117,15 @@ metadata %>%
   stat_summary(aes(x=AGE_CAT, y=f), fun.y="median", geom="point")+
   scale_y_log10()
 
+metadata %>%
+  select(SAMPLE_NAME,AGE_CAT,AGE_YEARS) %>%
+  merge(f_df, by="SAMPLE_NAME") %>%
+  filter(AGE_CAT!="baby") %>%
+  mutate(AGE_CAT = ifelse(AGE_CAT=="child","03+",AGE_CAT)) %>%
+  mutate(AGE_CAT = ifelse(AGE_CAT=="teen","10s",AGE_CAT)) %>%
+  na.omit() %>%
+  filter(f>0) %>%
+  with(.,cor.test(f,AGE_YEARS, method="spearman", data=. ))
 
 
 
