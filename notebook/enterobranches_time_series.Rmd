@@ -23,9 +23,9 @@ devtools::load_all(reset = FALSE)
 
 enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
 
-metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE) %>% mutate_all(na_if,"")
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "gutzilla"), stringsAsFactors = FALSE) %>% mutate_all(na_if,"")
 
-shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "agp")
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "gutzilla")
 
 shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
 
@@ -116,7 +116,7 @@ metadata %>%
   #mutate(sample_order=rank(days)) %>%
   mutate(days = as.numeric(days)) %>% 
   filter(any(days==0)) %>% 
-  filter(sample_order>1 & days <25) %>% head(1000)
+  filter(sample_order>1 & days <25) %>% 
   ggplot() + geom_tile(aes(x=sample_order,y=HOST_SUBJECT_ID, fill=branches)) +
   theme(axis.title.y=element_blank(),
         axis.text.y=element_blank(),
@@ -293,8 +293,8 @@ metadata %>%
   mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
   ggplot() + geom_bar(aes(x=days_delta_bins, fill=branches), position="fill") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  scale_y_continuous(labels = scales::percent) + scale_fill_brewer("branches after", type="qual", palette = "Set1") +
-  facet_wrap(~branches_before) + xlab("days between two samples") + ylab("Samples %")
+  scale_y_continuous(labels = scales::percent) + scale_fill_brewer("branches after", type="qual") +
+  facet_wrap(~branches_before) + xlab("time range between two samples") + ylab("Samples %") + scale_x_discrete(labels=c("day","4 months", "4 to 12 months", "> 12 months"))
 
 
 ```
@@ -302,7 +302,7 @@ metadata %>%
 ```{r}
 
 
-genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "gutzilla")
 genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
 
 genus %>% 
@@ -860,14 +860,205 @@ V(graph)$partition_names <-   enterotypes_time_series_stability$Enterotypes_id
   
 ggraph(graph, weights=p, layout="stress") +
   geom_edge_fan(aes(alpha = p), arrow=arrow(angle = 20, length = unit(4, "mm")), end_cap = circle(3, 'mm')) + 
+  #scale_alpha_ordinal("participants proportion") +
   #geom_node_point(aes(color=branches,size=stability*2)) +
-  geom_node_label(aes(label=partition_names, fill=branches, size=stability))
+  geom_node_label(aes(label=partition_names, fill=branches, size=stability)) + 
+  scale_fill_brewer(type="qual") +
+  scale_alpha_continuous("participants proportion")
   
   
 
 ```
+
+
+
+## main switches and keystone species
+
+main switches occurred between #6 and #2, #3 and #5
 
 
 ```{r}
+
+#compute fprau/bacteroides ratio and merge
+
+f_GG = "k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__Faecalibacterium"
+b_GG = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides"
+
+genus %>%
+  filter(taxa %in% c(f_GG,b_GG)) %>%
+  tibble::column_to_rownames("taxa") %>%
+  t %>%
+  as.data.frame() %>%
+  dplyr::rename(Feacalibacterium=2,Bacteroides=1) %>%
+  mutate(ratio=Feacalibacterium/Bacteroides) -> f_b_ratio
+
+# metadata %>%
+#   filter(SAMPLE_TYPE == "Stool") %>%
+#   select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+#   mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+#   merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+#   merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+#   filter(set != "outliers") %>%
+#   filter(Enterotypes_id != 19) %>%
+#   group_by(HOST_SUBJECT_ID) %>%
+#   mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+#   filter(n>1) %>%
+#   
+#   mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+#   group_by(HOST_SUBJECT_ID) %>%
+#   arrange(HOST_SUBJECT_ID, days) %>%
+#   mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>%
+#   filter(Enterotypes_id %in% c(2,6)) %>%
+#   ggplot() + geom_line(aes(x=days,y=shannon,group=HOST_SUBJECT_ID, col=as.character(Enterotypes_id))) 
+  
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>%
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(SAMPLE_NAME, HOST_SUBJECT_ID, days, sample_order, branches, Enterotypes_id, shannon, ratio) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character ) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), 
+         branches_before=lag(branches), days_delta= days - lag(days), 
+         Enterotypes_id_before = lag(Enterotypes_id %>% as.character),
+         shannon_before = lag(shannon),
+         ratio_before = lag(ratio)) %>%
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  filter(Enterotypes_id %in% c(2,6), Enterotypes_id_before %in% c(2,6)) %>%
+  ungroup() %>%
+  select(SAMPLE_NAME,Enterotypes_id,shannon,ratio, Enterotypes_id_before,shannon_before, ratio_before) %>%
+  mutate(switch=paste(Enterotypes_id,Enterotypes_id_before)) -> df
+
+df %>%
+  mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
+  ggplot() + geom_boxplot(aes(x=switch,y=delta_ratio)) + 
+  ylab("Faecalibacterium/Bacteroides ratio difference") + 
+  xlab("") + theme_classic() + 
+  scale_x_discrete(label=c("within","between","between","within"))
+
+df %>%
+  mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
+  with(.,pairwise.wilcox.test(delta_ratio,switch, data=.))
+
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  arrange(switch) %>%
+  ggplot() + geom_line(aes(x=ratio,y=SAMPLE_NAME, group=SAMPLE_NAME, col=switch))  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2") + facet_wrap(~switch, ncol=1, scale="free_y")
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(Enterotypes_id%>%as.numeric)) %>%
+  ggplot() + geom_density(aes(x=ratio, fill=switch), alpha=0.5)  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2")
+
+
+
+
+
 ```
+
+```{r}
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>%
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(SAMPLE_NAME, HOST_SUBJECT_ID, days, sample_order, branches, Enterotypes_id, shannon, ratio) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character ) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), 
+         branches_before=lag(branches), days_delta= days - lag(days), 
+         Enterotypes_id_before = lag(Enterotypes_id %>% as.character),
+         shannon_before = lag(shannon),
+         ratio_before = lag(ratio)) %>%
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  filter(Enterotypes_id %in% c(3,5), Enterotypes_id_before %in% c(3,5)) %>%
+  ungroup() %>%
+  select(SAMPLE_NAME,Enterotypes_id,shannon,ratio, Enterotypes_id_before,shannon_before, ratio_before) %>%
+  mutate(switch=paste(Enterotypes_id,Enterotypes_id_before)) -> df
+
+df %>%
+  mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
+  ggplot() + geom_boxplot(aes(x=switch,y=delta_ratio)) + 
+  ylab("Faecalibacterium/Bacteroides ratio difference") + 
+  xlab("") + theme_classic() + 
+  scale_x_discrete(label=c("within","between","between","within"))
+
+df %>%
+  mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
+  with(.,pairwise.wilcox.test(delta_ratio,switch, data=.))
+
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  arrange(switch) %>%
+  ggplot() + geom_line(aes(x=ratio,y=SAMPLE_NAME, group=SAMPLE_NAME, col=switch))  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2") + facet_wrap(~switch, ncol=1, scale="free_y")
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(Enterotypes_id%>%as.numeric)) %>%
+  ggplot() + geom_density(aes(x=ratio, fill=switch), alpha=0.5)  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2")
+
+
+
+```
+
 
