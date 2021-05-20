@@ -1290,7 +1290,7 @@ save(regm_tidy, file="regm_tidy.rda")
 
 ```{r}
 
-shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "agp")
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "gutzilla")
 
 shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
 
@@ -1343,7 +1343,7 @@ regm_tidy %>%
 
 ### data viz
 
-```{r fig.height=12, fig.width=13}
+```{r fig.height=12, fig.width=14}
 
 # regm_tidy %>% 
 #   merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
@@ -1381,16 +1381,17 @@ regm_tidy %>%
   group_by(variable) %>%
   mutate(s=mean(abs(estimate2))) %>% 
   filter(s>0) %>%
-  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median)) %>%
-  mutate(variable = variable %>% forcats::fct_reorder(s)) %>%
+  ungroup() %>%
+  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = FALSE)) %>%
+  mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = FALSE)) %>% 
   ggplot() + 
     geom_tile(aes(x=y.level, y=variable, fill=estimate)) + 
     geom_point(aes(x=y.level, y=variable, alpha=p.value<0.05)) + 
-    scale_fill_gradient2("Log OR") +
+    scale_fill_gradient2("Log OR", low=scales::muted("blue"), mid="white", high=scales::muted("red")) +
     facet_grid(variable_group~branch, scale="free", space = "free") + 
   xlab("Microbiome partition\nordered by branch and by alpha-diversity") + ylab("")
     
-  ggsave("partitions_multinomial_logOR.pdf", height = 12, width = 13)
+  ggsave("partitions_multinomial_logOR.pdf", height = 12, width = 14)
   
   
   # reshape2::dcast(y.level~variable, value.var = "estimate") %>%
@@ -1399,6 +1400,38 @@ regm_tidy %>%
   # t() %>%
   # heatmap(scale = "none", col = cm.colors(256))
 
+  
+regm_tidy %>%
+    mutate(variable_group = "disease") %>%
+    mutate(variable_group = 
+             case_when(grepl("FREQUENCY", variable) ~ "Diet, demographic and lifestyle",
+                       grepl("ALCOHOL", variable) ~ "Diet, demographic and lifestyle",
+                       variable %in% c("AGE_YEARS","SEX","DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet, demographic and lifestyle",
+                       grepl("SPECIALIZED", variable) ~"Specialized Diet",
+                       grepl("REGION", variable) ~ "Region of Birth",
+                       TRUE ~ "Health associated"
+                            )) %>%
+    merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
+  mutate(estimate = log(estimate)) %>%
+  mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+  group_by(variable) %>%
+  mutate(s=mean(abs(estimate2))) %>% 
+  filter(s>0) %>%
+  ungroup() %>%
+  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = FALSE)) %>%
+  mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = FALSE)) %>%  
+  group_by(variable,variable_group,branch) %>%
+  summarise(estimate=sum(abs(estimate2))) %>%
+  ggplot() +
+  geom_bar(aes(x=variable,y=estimate,fill=branch), stat="identity", position = "stack") +
+  facet_grid(variable_group~., scale="free", space = "free") + coord_flip() + scale_fill_brewer(type="qual") +
+  xlab("") + ylab("absolute cummulated Log OR")
+  
+  
 
 ```
 
