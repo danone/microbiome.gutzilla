@@ -961,7 +961,7 @@ metadata %>%
 df %>%
   mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
   ggplot() + geom_boxplot(aes(x=switch,y=delta_ratio)) + 
-  ylab("Faecalibacterium/Bacteroides ratio difference") + 
+  ylab("Faecalibacterium/Bacteroides ratio variation") + 
   xlab("") + theme_classic() + 
   scale_x_discrete(label=c("within","between","between","within"))
 
@@ -982,7 +982,41 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   ggplot() + geom_density(aes(x=ratio, fill=switch), alpha=0.5)  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2")
 
 
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("2 2", "2 6")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  ggplot() + geom_boxplot(aes(x=switch, y=value)) + facet_wrap(~variable, scale="free")
 
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("2 2", "2 6")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  group_by(variable) %>%
+  tidyr::nest()  %>% 
+  mutate(wilcox_test=purrr::map(data,~wilcox.test(.x$value~.x$switch)),
+        tidy=purrr::map(wilcox_test, broom::tidy)) %>% 
+      tidyr::unnest(tidy,.drop=TRUE) %>%
+  arrange(p.value) %>%
+  ungroup() %>%
+  mutate(p.value=p.adjust(p.value, method="fdr")) %>%
+  filter(p.value<0.05)
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("6 6", "6 2")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  group_by(variable) %>%
+  tidyr::nest()  %>% 
+  mutate(wilcox_test=purrr::map(data,~wilcox.test(.x$value~.x$switch)),
+        tidy=purrr::map(wilcox_test, broom::tidy)) %>% 
+      tidyr::unnest(tidy,.drop=TRUE) %>%
+  arrange(p.value) %>%
+  ungroup() %>%
+  mutate(p.value=p.adjust(p.value, method="fdr"))%>%
+  filter(p.value<0.05)
 
 
 ```
@@ -1037,7 +1071,7 @@ metadata %>%
 df %>%
   mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
   ggplot() + geom_boxplot(aes(x=switch,y=delta_ratio)) + 
-  ylab("Faecalibacterium/Bacteroides ratio difference") + 
+  ylab("Faecalibacterium/Bacteroides ratio variation") + 
   xlab("") + theme_classic() + 
   scale_x_discrete(label=c("within","between","between","within"))
 
@@ -1056,6 +1090,80 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
   mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(Enterotypes_id%>%as.numeric)) %>%
   ggplot() + geom_density(aes(x=ratio, fill=switch), alpha=0.5)  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2")
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("5 5", "5 3")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  ggplot() + geom_boxplot(aes(x=switch, y=value)) + facet_wrap(~variable, scale="free")
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("5 5", "3 3")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  ggplot() + geom_boxplot(aes(x=switch, y=value)) + facet_wrap(~variable, scale="free")
+
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("5 5", "5 3")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  group_by(variable) %>%
+  tidyr::nest()  %>% 
+  mutate(wilcox_test=purrr::map(data,~wilcox.test(.x$value~.x$switch)),
+        tidy=purrr::map(wilcox_test, broom::tidy)) %>% 
+      tidyr::unnest(tidy,.drop=TRUE) %>%
+  arrange(p.value) %>%
+  ungroup() %>%
+  mutate(p.value=p.adjust(p.value, method="fdr")) %>%
+  filter(p.value<0.05)
+
+
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("3 3", "3 5")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  group_by(variable) %>%
+  tidyr::nest()  %>% 
+  mutate(wilcox_test=purrr::map(data,~wilcox.test(.x$value~.x$switch)),
+        tidy=purrr::map(wilcox_test, broom::tidy)) %>% 
+      tidyr::unnest(tidy,.drop=TRUE) %>%
+  arrange(p.value) %>%
+  ungroup() %>%
+  mutate(p.value=p.adjust(p.value, method="fdr")) %>%
+  filter(p.value<0.05)
+
+
+
+
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("3 3", "5 5")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  group_by(variable) %>%
+  tidyr::nest()  %>% 
+  mutate(wilcox_test=purrr::map(data,~wilcox.test(.x$value~.x$switch)),
+        tidy=purrr::map(wilcox_test, broom::tidy)) %>% 
+      tidyr::unnest(tidy,.drop=TRUE) %>%
+  arrange(p.value) %>%
+  ungroup() %>%
+  mutate(p.value=p.adjust(p.value, method="fdr")) %>%
+  filter(p.value<0.05)
+
+
+
+
+
+
+
+
+
+
 
 
 
