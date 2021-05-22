@@ -1,0 +1,305 @@
+---
+title: "microbiome partitions exploration"
+output: html_notebook
+---
+
+
+
+
+
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+devtools::load_all(reset = FALSE)
+
+
+
+```
+
+
+# import data
+
+
+## load genus abundance
+```{r}
+
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "gutzilla")
+
+genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+
+```
+
+
+
+
+## load enterotypes set from DMM analysis
+```{r}
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+enterotypes %>% head
+
+
+
+```
+
+
+
+## clean metadata enterotypes numerical
+
+```{r}
+
+
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "gutzilla"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+
+
+
+
+variable_to_remove= c("HEIGHT_CM", 
+"WEIGHT_KG",
+"SAMPLE_TYPE",
+"BMI_CAT",
+"HOST_SUBJECT_ID",
+"ANONYMIZED_NAME",
+"ASSIGNED_FROM_GEO",
+"BIRTH_YEAR",
+"DESCRIPTION",
+"DNA_EXTRACTED",
+"HEIGHT_UNITS",
+"WEIGHT_UNITS",
+"SCIENTIFIC_NAME",
+"SURVEY_ID",
+"TAXON_ID",
+"WEIGHT_UNITS",
+"VIOSCREEN_STATUS","VIOSCREEN_SURVEYID","PUBLIC","TITLE","GEO_LOC_NAME")
+
+
+
+
+health_metadata = c("BMI_CAT",
+"ANTIBIOTIC_HISTORY" ,
+"ALZHEIMERS",
+"AUTOIMMUNE",
+"CANCER",
+"DIABETES",
+"IBD",
+"IBS",
+"KIDNEY_DISEASE",
+"ACID_REFLUX",
+"ALLERGIC_TO_I_HAVE_NO_FOOD_ALLERGIES_THAT_I_KNOW_OF",
+"CARDIOVASCULAR_DISEASE",
+"CDIFF",
+"DEPRESSION_BIPOLAR_SCHIZOPHRENIA",
+"EPILEPSY_OR_SEIZURE_DISORDER",
+"FUNGAL_OVERGROWTH",
+"GLUTEN",
+"LACTOSE",
+"LIVER_DISEASE",
+"LUNG_DISEASE",
+"MENTAL_ILLNESS",
+"MIGRAINE",
+"PKU",
+"SIBO",
+"THYROID")
+
+diet_variables =
+  c("TYPES_OF_PLANTS",
+  "DIET_TYPE",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "SPECIALIZED_DIET_FODMAP",
+  "SPECIALIZED_DIET_EXCLUDE_DAIRY",
+  "SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+  "SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+  "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET",
+  "OLIVE_OIL")
+
+
+
+data("UNSD_countries")
+
+metadata <- metadata %>% 
+  #select(SAMPLE_NAME, COUNTRY_OF_BIRTH) %>%
+  merge(UNSD_countries %>% 
+          select(`Country or Area`, `Sub-region Name`, `Region Name`) %>% 
+          mutate(`Country or Area` =  gsub("United Kingdom of Great Britain and Northern Ireland", "United Kingdom", `Country or Area`)) %>% 
+          mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
+        by.x="COUNTRY_OF_BIRTH", by.y="Country or Area", all.x = TRUE)
+
+
+
+
+range0_1 = function(x) {(x-min(x, na.rm = TRUE))/(max(x, na.rm="TRUE")-min(x,na.rm = TRUE))}
+
+metadata %>%
+  select(SAMPLE_NAME, contains("_FREQUENCY"), 
+         TYPES_OF_PLANTS, OLIVE_OIL, DIET_TYPE, 
+         contains("SPECIALIZED_DIET_"),
+         all_of(health_metadata),BMI, contains("ALCOHOL_TYPES_"),
+         AGE_YEARS, SEX, COLLECTION_SEASON, `Sub-region Name`) %>%
+  select(-SPECIALIZED_DIET_WESTENPRICE_OR_OTHER_LOWGRAIN_LOW_PROCESSED_FO, -BMI_CAT, -ALCOHOL_TYPES_UNSPECIFIED) %>%
+  dplyr::rename(REGION_BIRTH=`Sub-region Name`) %>% #select(-SAMPLE_NAME) %>% apply(2,table)
+  tidyext::onehot(var = c("REGION_BIRTH","GLUTEN","COLLECTION_SEASON")) %>%
+  select(-GLUTEN_No) %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME")) %>% 
+  mutate(value= ifelse(value %in% c("LabControl test",
+                                    "other",
+                                    "Self-diagnosed",
+                                    "Diagnosed by an alternative medicine practitioner"),NA,value)) %>%
+  mutate(value = forcats::fct_recode(value,   `0` = "Never",
+                                              `0.25` = "Rarely (less than once/week)",
+                                              `0.25` = "Rarely (a few times/month)",              
+                                              `0.5` = "Occasionally (1-2 times/week)",                 
+                                              `0.75` = "Regularly (3-5 times/week)", 
+                                              `1` = "Daily",
+                                              `1` = "true",
+                                              `0` = "false",
+                                              `1` = "Yes",
+                                              `0` = "No",
+                                              `1` = "Diagnosed by a medical professional (doctor, physician assistant)",
+                                              `0` = "I do not have this condition",
+                                              `0` = "female",
+                                              `1` = "male",
+                                              `0` = "I have not taken antibiotics in the past year.",
+                                              `0.25` = "Year",
+                                              `0.5` = "6 months",
+                                              `0.75` = "Month",
+                                              `1` = "Week",
+                                              `0` = "Less than 5",
+                                              `0.25` = "6 to 10",
+                                              `0.5` = "11 to 20",              
+                                              `0.75` = "21 to 30",                 
+                                              `1` = "More than 30", 
+                                              `0` = "Less than one",
+                                              `0.2` = "One",
+                                              `0.4` = "Two",
+                                              `0.6` = "Three",              
+                                              `0.6` = "Four",                 
+                                              `1` = "Five or more",
+                                              `0` = "Omnivore" ,
+                                              `0.25` = "Omnivore but do not eat red meat",
+                                              `0.5` = "Vegetarian but eat seafood",              
+                                              `0.75` = "Vegetarian",                 
+                                              `1` = "Vegan"
+                                    
+                                       
+                                       
+                                       )) %>%
+  mutate(value= value %>% as.character %>% as.numeric) %>%
+  group_by(variable) %>%
+  mutate(value = ifelse(is.na(value),mean(value,na.rm = TRUE),value)) %>% #slice_sample(prop=0.1)
+  reshape2::dcast(SAMPLE_NAME~variable, value.var = "value", fill="Missing") %>%
+  mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric %>% range0_1() ) %>%
+  mutate(BMI = BMI %>% as.character() %>% as.numeric %>% range0_1() ) %>%
+  #mutate(AGE_YEARS = ifelse(is.na(AGE_YEARS),mean(AGE_YEARS,na.rm = TRUE),value)) %>%
+  #mutate(REGION_BIRTH             = forcats::fct_relevel(REGION_BIRTH, ref = "Northern America")) %>%
+  merge(enterotypes %>% select(sample_name, Enterotypes_id), by.y="sample_name", by.x="SAMPLE_NAME") %>%
+  mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>% tibble::column_to_rownames("SAMPLE_NAME") -> metadata_enterotypes_num
+
+```
+
+
+
+# prepare data
+
+
+## clr normalisation
+
+
+```{r}
+
+genus %>%
+  mutate_if(is.numeric,SpiecEasi::clr ) -> genus_clr
+
+save(genus_clr, file="genus_clr.rda")
+
+
+
+```
+
+
+## select top genera
+```{r}
+load("../fit_genus_bootstrap.rda")
+
+###################################################
+### code chunk number 11: posterior-mean-diff
+###################################################
+p0 <- fitted(fit_genus_bootstrap[[1]][[1]][[1]], scale=TRUE)     # scale by theta
+pbest <- fitted(fit_genus_bootstrap[[1]][[1]][[14]], scale=TRUE)
+colnames(pbest) <- paste("m", 1:19, sep="")
+(meandiff <- colSums(abs(pbest - as.vector(p0))))
+sum(meandiff)
+
+
+###################################################
+### code chunk number 12: table-1
+###################################################
+diff <- rowSums(abs(pbest - as.vector(p0)))
+o <- order(diff, decreasing=TRUE)
+cdiff <- cumsum(diff[o]) / sum(diff)
+df <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 30)
+df %>% as.data.frame()
+
+df_gutzilla = df %>% as.data.frame()
+```
+
+
+```{r fig.height=15, fig.width=12}
+row.names(df_gutzilla)[1:20]
+
+genus_clr %>%
+  filter(taxa %in% row.names(df_gutzilla)[1:20]) %>%
+  reshape2::melt(id="taxa") %>%
+  merge(enterotypes, by.x="variable", by.y="sample_name") %>%
+  filter(!is.na(Enterotypes_id)) %>%
+  mutate(Enterotypes_id =  Enterotypes_id %>% as.character %>% as.factor %>% forcats::fct_reorder(value.x)) %>%
+  mutate(taxa = taxa %>% as.character %>% gsub(";","\n",.) %>% as.factor %>% forcats::fct_reorder(value.x, .desc = TRUE)) %>%
+  ggplot() + geom_violin(aes(x=Enterotypes_id, y=value.x)) + facet_wrap(~taxa , ncol=4) + ylab("CLR abundance") + xlab("microbiome partitions")
+
+
+ggsave("microbiome_partition_clr_top20.pdf", h=15, w=12)
+
+```
+
+## correlation with metadata
+```{r fig.height=8, fig.width=15}
+
+
+test= cor(genus_clr %>%
+            filter(taxa %in% row.names(df_gutzilla)) %>%
+  tibble::column_to_rownames("taxa") %>% .[,rownames(metadata_enterotypes_num)] %>% t,
+metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), method="spearman") 
+
+
+hist(test)
+
+
+heatmap(test,  col = cm.colors(16), margin=c(18,1), scale="none")
+
+
+
+```
+
+
+
+
+
