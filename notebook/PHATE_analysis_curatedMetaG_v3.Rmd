@@ -1,0 +1,164 @@
+---
+title: "PHATE analysis CuratedMetaGData version 3"
+output: html_notebook
+---
+
+
+
+
+
+```{r}
+
+library(phyloseq)
+devtools::load_all()
+library(magrittr)
+library(forcats)
+library(ggplot2)
+
+```
+
+
+
+```{r}
+
+load(system.file("data-raw/curatedMetaG/curated_v3_otu_tax.rda", package = "gutzilla"))
+
+
+```
+
+
+
+```{r}
+
+OTU %>%
+  merge(TAX %>% as.data.frame() %>% select(Genus), by="row.names") %>%
+  select(-Row.names) %>%
+  group_by(Genus) %>%
+  summarise_all(sum) -> curated_v3_genus
+  
+  
+
+curated_v3_genus %>%
+  arrange(desc(SAMEA7041268))
+
+
+curated_v3_genus$Genus
+
+grep("Muribaculaceae",row.names(TAX), value = TRUE)
+
+
+
+```
+
+
+
+```{r}
+
+
+curated_v3_genus %>%
+  ungroup() %>%
+  mutate_if(is.numeric, function(x) x/sum(x)) %>%
+  tibble::column_to_rownames("Genus") %>% 
+  as.matrix %>% 
+  apply(1,sum) %>% 
+  sort %>% rev %>% head(30) -> top_genus_mass_curated
+
+
+
+curated_v3_genus %>%
+  ungroup() %>%
+  mutate_if(is.numeric, function(x) x/sum(x)) -> curated_v3_genus_prop
+
+
+
+
+
+curated_v3_genus_prop %>%
+  filter(Genus %in% names(top_genus_mass_curated)) %>%
+  summarise_if(is.numeric, sum) -> dominant_mass_per_sample
+
+
+
+dominant_mass_per_sample %>%
+  t %>%
+  as.data.frame() %>%
+  arrange(V1) %>%
+  filter(V1>0.25) %>% row.names() -> sample_curated_to_select
+
+
+curated_v3_genus_prop %>%
+  filter(Genus %in% names(top_genus_mass_curated)) %>% 
+  tibble::column_to_rownames("Genus") %>% as.matrix %>% cor() -> sample_cor
+
+
+sample_cor %>% head
+
+
+```
+
+
+
+
+```{r}
+
+genus_phate = 
+  curated_v3_genus_prop %>%
+  filter(Genus %in% c(names(top_genus_mass_curated),"Methanobrevibacter")) %>%
+  tibble::column_to_rownames("Genus") %>%
+  select(all_of(sample_curated_to_select)) %>%
+  t() %>%
+  #as.data.frame() %>%
+  #merge(enterotypes %>% filter(set != "outliers", value>0.80) %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% head
+  
+  phateR::phate(gamma=0, t=40, seed=666)
+
+
+
+
+```
+
+
+
+```{r}
+
+
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Prevotella") %>% 
+  merge(genus_phate$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(P_B_ratio = (`Prevotella`+1)/(`Bacteroides`+1)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=P_B_ratio %>% log10())) + scale_color_viridis_c("log10(P/B ratio)")
+
+
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Akkermansia") %>% 
+  merge(genus_phate$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(A_B_ratio = (`Akkermansia`+1)/(`Bacteroides`+1)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=A_B_ratio %>% log10())) + scale_color_viridis_c("log10(A/B ratio)")
+
+
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Methanobrevibacter") %>% 
+  merge(genus_phate$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(M_B_ratio = (`Methanobrevibacter`+1)/(`Bacteroides`+1)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=M_B_ratio %>% log10())) + scale_color_viridis_c("log10(M/B ratio)")
+
+
+
+
+
+```
+
+
+
