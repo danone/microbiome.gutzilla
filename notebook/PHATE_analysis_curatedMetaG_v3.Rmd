@@ -91,7 +91,10 @@ curated_v3_genus_prop %>%
   tibble::column_to_rownames("Genus") %>% as.matrix %>% cor() -> sample_cor
 
 
-sample_cor %>% head
+curated_v3_genus_prop %>%
+  mutate_if(is.numeric, function(x) round(x*10^4,0)  ) %>%
+  filter(Genus %in% names(top_genus_mass_curated)) %>%
+  tibble::column_to_rownames("Genus") -> genus_count_dominant
 
 
 ```
@@ -155,10 +158,229 @@ curated_v3_genus %>%
   ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=M_B_ratio %>% log10())) + scale_color_viridis_c("log10(M/B ratio)")
 
 
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Bifidobacterium") %>% 
+  merge(genus_phate$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(B_B_ratio = (`Bifidobacterium`+1)/(`Bacteroides`+1)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=B_B_ratio %>% log10())) + scale_color_viridis_c("log10(B/B ratio)")
+
+
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Escherichia") %>% 
+  merge(genus_phate$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(E_B_ratio = (`Escherichia`+1)/(`Bacteroides`+1)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=E_B_ratio %>% log10())) + scale_color_viridis_c("log10(E/B ratio)")
 
 
 
 ```
+
+
+
+
+
+```{r}
+
+enterotypes = readr::read_csv2("enterotypes_curated_v3_prediction.csv")[,-1]
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(PHATE1=mean(PHATE1), PHATE2=mean(PHATE2)) -> enterotypes_phate_centroid
+
+enterotypes_phate_centroid %>%
+  arrange(PHATE1)
+
+enterotypes_phate_centroid %>%
+  arrange(PHATE2)
+
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(2,3,8,9,14,15,16), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(4,5,13,18), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(17,21,22,23,24), "Bifidobacterium DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(19,21,24), "Escherichia DMM types",branch)) %>%
+  #mutate(branch = ifelse(Enterotypes_id %in% c(7,11,12), "Akkermansia DMM types",branch)) %>%
+  filter(!(Enterotypes_id %in% c(19,20,21,23,24))) %>% # remove low theta dmm
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=branch), size=1, alpha=0.5) +
+  scale_color_brewer("main taxa\nDMM types",type="qual") + theme_classic() +
+  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
+
+
+
+```
+
+
+```{r}
+
+MN_species = readLines(system.file("data-raw/MN_species.txt", package = "gutzilla"))
+MH_species = readLines(system.file("data-raw/MH_species.txt", package = "gutzilla"))
+
+MN_species_tax = grep(paste(MN_species,sep="|", collapse = "|"),row.names(OTU), value=TRUE  )
+MH_species_tax = grep(paste(MH_species,sep="|", collapse = "|"),row.names(OTU), value=TRUE  )
+
+
+
+
+
+
+```
+
+```{r}
+
+MH_species_metagenome =
+OTU %>% 
+  unclass %>%
+  prop.table(2) %>%
+  as.data.frame %>%
+  tibble::rownames_to_column("taxa") %>%
+  filter(taxa %in% c(MH_species_tax)) %>%
+  tibble::column_to_rownames("taxa")
+
+MN_species_metagenome =
+OTU %>% 
+  unclass %>%
+  prop.table(2) %>%
+  as.data.frame %>%
+  tibble::rownames_to_column("taxa") %>%
+  filter(taxa %in% c(MN_species_tax)) %>%
+  tibble::column_to_rownames("taxa")
+  
+
+
+```
+
+
+
+
+
+## GMHI computation
+
+```{r}
+
+
+output_file = 'GMHI_curated_v3_output.csv'
+
+alpha <- function(x){sum((log(x[x>0]))*(x[x>0]))*(-1)}
+
+MH_shannon <- apply((MH_species_metagenome), 2, alpha) 
+
+MN_shannon <- apply((MN_species_metagenome), 2, alpha) 
+
+
+
+
+
+# Richness of Health-prevalent species
+
+# Richness of Health-scarce species
+
+R_MH <- apply(MH_species_metagenome, 2, function(i) (sum(i > 0))) 
+
+R_MN <- apply(MN_species_metagenome, 2, function(i) (sum(i > 0)))
+
+
+
+
+
+# Median RMH from 1% of the top-ranked samples
+
+# Median RMN from 1% of the bottom-ranked samples
+
+# Supplementary Methods for further details
+
+MH_prime <- 7
+
+MN_prime <- 31
+
+
+
+
+
+# Collective abundance of Health-prevalent species
+
+# Collective abundance of Health-scarce species
+
+psi_MH <- ((R_MH/MH_prime)*MH_shannon) 
+
+psi_MN <- ((R_MN/MN_prime)*MN_shannon)
+
+
+
+GMHI <- data.frame(log10((psi_MH+0.00001)/(psi_MN+0.00001))) # 0.00001 added to avoid having the denominator as 0
+
+colnames(GMHI) <- c("GMHI")
+
+
+
+if (file.exists(output_file)){
+
+	file.remove(output_file)
+
+}
+
+write.csv(GMHI, file=output_file) # Saving GMHI results as 'GMHI_curated_v3_output.csv'. User should change the path to the appropriate directory.
+
+
+
+
+```
+
+
+```{r}
+
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(GMHI, by.x="Row.names", by.y="row.names" ) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=GMHI), size=1, alpha=0.5) +
+  scale_color_viridis_c("GMHI", option="cividis") + theme_classic() +
+  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
+
+
+```
+
+# Alpha-diversity
+```{r}
+
+shannon_curated_v3 =
+OTU %>%
+  unclass %>%
+  as.data.frame() %>%
+  t() %>% 
+  vegan::rrarefy(sample=10^5) %>%
+  vegan::diversity(MARGIN = 1) %>%
+  as.data.frame() %>%
+  dplyr::rename(shannon = 1)
+
+
+```
+
+
+
+```{r}
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(shannon_curated_v3, by.x="Row.names", by.y="row.names" ) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=shannon), size=1, alpha=0.5) +
+  scale_color_viridis_c("Shannon", option="cividis") + theme_classic() +
+  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
+
+
+```
+
 
 
 
