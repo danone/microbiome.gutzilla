@@ -17,7 +17,7 @@ library(magrittr)
 
 ```{r}
 
-load(system.file("data-raw/curatedMetaG/curatedMetaGData.rda", package = "agp"))
+load(system.file("data-raw/curatedMetaG/curatedMetaGData.rda", package = "gutzilla"))
 
 
 ```
@@ -47,8 +47,8 @@ load("top_genus_mass.rda")
 
 ```{r}
 curatedMetaG_data %>%
-  mutate(Genus=fct_explicit_na(Genus, na_level = ""),
-         Family=fct_explicit_na(Family, na_level = "")) %>%
+  mutate(Genus=forcats::fct_explicit_na(Genus, na_level = ""),
+         Family=forcats::fct_explicit_na(Family, na_level = "")) %>%
   group_by(Kingdom,Phylum,Class,Order,Family,Genus) %>%
   select(-Row.names,-Species) %>%
   summarise_all(sum) %>%
@@ -324,7 +324,7 @@ merge(df_curated,df_gutzilla, by="row.names") %>%
   dplyr::rename(`Shannon scaled`="scale") %>%
   merge(diet_coa, by.x="Microbiota", by.y ="row.names", all = TRUE ) %>%
   #select(-Axis2) %>%
-  dplyr::rename
+  #dplyr::rename
   tibble::column_to_rownames("Microbiota") -> microbiota_annotation
 
 
