@@ -116,6 +116,27 @@ genus_phate =
   phateR::phate(gamma=0, t=40, seed=666)
 
 
+genus_phate_test = 
+  curated_v3_genus_prop %>%
+  filter(Genus %in% c(names(top_genus_mass_curated),"Methanobrevibacter")) %>%
+  tibble::column_to_rownames("Genus") %>%
+  select(all_of(sample_curated_to_select)) %>%
+  t() %>%
+  #as.data.frame() %>%
+  #merge(enterotypes %>% filter(set != "outliers", value>0.80) %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% head
+  
+  phateR::phate(gamma=1, seed=666, decay=40)
+
+
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Prevotella") %>% 
+  merge(genus_phate_test$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(P_B_ratio = (`Prevotella`+1)/(`Bacteroides`+1)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=P_B_ratio %>% log10())) + scale_color_viridis_c("log10(P/B ratio)")
 
 
 ```
@@ -207,12 +228,12 @@ enterotypes_phate_centroid %>%
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
   mutate(branch ="Clostridiales DMM types") %>%
-  mutate(branch = ifelse(Enterotypes_id %in% c(2,3,8,9,14,15,16), "Prevotella DMM types",branch)) %>%
-  mutate(branch = ifelse(Enterotypes_id %in% c(4,5,13,18), "Bacteroides DMM types",branch)) %>%
-  mutate(branch = ifelse(Enterotypes_id %in% c(17,21,22,23,24), "Bifidobacterium DMM types",branch)) %>%
-  mutate(branch = ifelse(Enterotypes_id %in% c(19,21,24), "Escherichia DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(16,12,4,13,17,7,10,15,14), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(21,20,5,3,2,1,6), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(23,24), "Bifidobacterium DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(19,22), "Escherichia DMM types",branch)) %>%
   #mutate(branch = ifelse(Enterotypes_id %in% c(7,11,12), "Akkermansia DMM types",branch)) %>%
-  filter(!(Enterotypes_id %in% c(19,20,21,23,24))) %>% # remove low theta dmm
+  #filter(!(Enterotypes_id %in% c(19,20,21,23,24))) %>% # remove low theta dmm
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=branch), size=1, alpha=0.5) +
   scale_color_brewer("main taxa\nDMM types",type="qual") + theme_classic() +
   ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
@@ -220,6 +241,26 @@ genus_phate$embedding %>%
 
 
 ```
+
+```{r fig.height=6, fig.width=12}
+
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(16,12,4,13,17,7,10,15,14), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(21,20,5,3,2,1,6), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(23,24), "Bifidobacterium DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c(19,22), "Escherichia DMM types",branch)) %>%
+  #mutate(branch = ifelse(Enterotypes_id %in% c(7,11,12), "Akkermansia DMM types",branch)) %>%
+  #filter(!(Enterotypes_id %in% c(19,20,21,23,24))) %>% # remove low theta dmm
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=branch), size=1, alpha=0.5) +
+  scale_color_brewer("main taxa\nDMM types",type="qual") + theme_classic() + facet_wrap(~branch)
+  
+
+```
+
+
 
 
 ```{r}
@@ -348,6 +389,7 @@ genus_phate$embedding %>%
   scale_color_viridis_c("GMHI", option="cividis") + theme_classic() +
   ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
 
+ggsave("gmhi_curated_v3_phate.pdf")
 
 ```
 
@@ -364,6 +406,7 @@ OTU %>%
   as.data.frame() %>%
   dplyr::rename(shannon = 1)
 
+save(shannon_curated_v3, file="shannon_curated_v3.rda")
 
 ```
 
@@ -378,8 +421,82 @@ genus_phate$embedding %>%
   scale_color_viridis_c("Shannon", option="cividis") + theme_classic() +
   ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
 
+ggsave("shannon_curated_v3_phate.pdf")
+
 
 ```
+
+
+## predict lineage with slingshot
+
+
+
+```{r}
+
+library(slingshot)
+
+
+enterotypes_curated_v3 = read.csv2("enterotypes_curated_v3_prediction.csv", row.names = 1)
+
+
+genus_phate_enterotypes_curated_v3 = merge(genus_phate$embedding,enterotypes_curated_v3, by.x="row.names", by.y="sample_name")
+
+
+genus_phate_enterotypes_curated_v3 %>%
+  dplyr::sample_n(size=1000) -> genus_phate_enterotypes_curated_v3_sub
+      
+      
+pto <- slingshot(
+  genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),
+  genus_phate_enterotypes_curated_v3_sub$Enterotypes_id , approx_points = 150)
+
+
+lin1 <- getLineages(genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),
+  genus_phate_enterotypes_curated_v3_sub$Enterotypes_id %>% as.character() )
+
+lin1
+
+plot(genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),  asp = 1)
+plot(lin1, lwd = 3, col = 'black')
+
+
+pseudo <- slingPseudotime(pto)
+curve_weight <- slingCurveWeights(pto)      
+
+
+
+genus_phate_enterotypes_curated_v3_sub
+
+plot(genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),  asp = 1)
+lines(pto, lwd = 3)
+
+
+
+
+genus_phate_enterotypes_curated_v3 %>%
+  group_by(Enterotypes_id) %>%
+  summarise(PHATE1=mean(PHATE1),PHATE2=mean(PHATE2)) %>%
+  tibble::column_to_rownames("Enterotypes_id") %>%
+  dist() %>%
+  ape::mst() -> M
+
+
+
+
+phate_dmm_centroid = genus_phate_enterotypes_curated_v3 %>%
+  group_by(Enterotypes_id) %>%
+  summarise(PHATE1=mean(PHATE1),PHATE2=mean(PHATE2)) %>%
+  tibble::column_to_rownames("Enterotypes_id")
+    
+
+plot(M, x1 = phate_dmm_centroid$PHATE1, x2 = phate_dmm_centroid$PHATE2)
+
+
+      
+```
+
+
+
 
 
 
