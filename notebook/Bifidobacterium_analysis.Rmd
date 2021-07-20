@@ -671,3 +671,214 @@ metadata <- metadata %>%
 
 ```
 
+
+
+## Bifidobacterium in Curated Metagenomics db
+
+
+
+```{r}
+
+load(system.file("data-raw/curatedMetaG/curated_v3_otu_tax.rda", package = "gutzilla"))
+
+
+```
+
+
+```{r}
+
+sampleMetadata %>%
+  select(age, sample_id, number_reads) %>% head
+
+
+```
+
+
+
+```{r}
+
+OTU %>%
+  merge(TAX %>% as.data.frame() %>% select(Genus), by="row.names") %>%
+  select(-Row.names) %>%
+  group_by(Genus) %>%
+  summarise_all(sum) -> curated_v3_genus
+
+
+
+
+
+
+OTU %>%
+  unclass() %>%
+  as.matrix() %>%
+  merge(TAX %>% as.data.frame() %>% select(Genus,Species), by="row.names") %>%
+  filter(Genus=="Bifidobacterium") %>% 
+  select(-Row.names,-Genus) %>%
+  mutate(Species = Species %>% as.character()) %>%
+  mutate(Species = ifelse(Species %in% c("Bifidobacterium adolescentis",
+                                                     "Bifidobacterium breve",
+                                                     "Bifidobacterium bifidum",
+                                                     "Bifidobacterium longum"), Species, "others Bifidobacterium")) %>%
+  group_by(Species) %>%
+  summarise_all(sum) -> curated_v3_Bif_species
+
+
+
+```
+
+
+
+```{r}
+curated_v3_genus %>%
+  filter(Genus %in% c("Bifidobacterium","Bacteroides")) %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>% 
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_id") %>%
+  merge(sampleMetadata %>% select(age, sample_id, number_reads), by="sample_id") %>%
+  mutate(log_ratio=log2((Bifidobacterium+1)/(Bacteroides+1))) %>%
+  arrange(age) %>%
+  mutate(log_ratio_rmean = zoo::rollmedian(log_ratio, 250, align = "right", fill = NA),
+         age_rmean = zoo::rollmean(age, 250, align = "right", fill = NA)) %>%
+  ggplot() + geom_line(aes(x=age_rmean+1, y=log_ratio_rmean)) + scale_x_log10()
+
+
+p_bif_genus = curated_v3_genus %>%
+  filter(Genus %in% c("Bifidobacterium","Bacteroides")) %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>% 
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_id") %>%
+  merge(sampleMetadata %>% select(age, sample_id, number_reads), by="sample_id") %>%
+  filter(!is.na(age)) %>%
+  mutate(log_ratio=log2((Bifidobacterium+1)/(Bacteroides+1))) %>%
+  arrange(age) %>%
+  mutate(log_ratio_rmean = zoo::rollmean(log_ratio, 1000, align = "right", fill = NA),
+         log_ratio_q25 = zoo::rollapply(log_ratio, 1000, FUN=function(x){quantile(x,0.25)}, align = "right", fill = NA),
+         log_ratio_q75 = zoo::rollapply(log_ratio, 1000, FUN=function(x){quantile(x,0.75)}, align = "right", fill = NA),
+         age_rmean = zoo::rollmean(age, 1000, align = "right", fill = NA)) %>%
+  na.omit() %>%
+  ggplot() +
+  geom_smooth(aes(x=age_rmean+1, y=log_ratio_rmean), se=FALSE) + 
+  geom_smooth(aes(x=age_rmean+1, y=log_ratio_q25), se=FALSE, col="grey50") +
+  geom_smooth(aes(x=age_rmean+1, y=log_ratio_q75), se=FALSE, col="grey50") +
+  scale_y_continuous("Bifidobacterium Bacteroides ratio (log2)") + scale_x_log10("Age (Years)") +
+  geom_hline(yintercept = 0, linetype=2) +
+  theme_classic()
+
+
+
+curated_v3_Bif_species %>%
+  mutate_if(is.numeric, function(x) x/sum(x)) %>%
+  tibble::column_to_rownames("Species") %>%
+  t() %>%
+  as.data.frame() -> curated_v3_Bif_species_prop
+```
+
+
+```{r }
+curated_v3_Bif_species_prop %>%
+  tibble::rownames_to_column("sample_id") %>%
+  merge(sampleMetadata %>% select(age, sample_id), by="sample_id") %>%
+  reshape2::melt(id.vars=c("sample_id","age")) %>%
+  mutate(value=ifelse(is.na(value),0,value)) %>%
+  mutate(detection = ifelse(value>0,1,0)) %>%
+  arrange(age) %>%
+  group_by(variable) %>%
+  mutate(rprop = zoo::rollmean(value, 1000, align = "right", fill = NA),
+         rprev = zoo::rollmean(detection, 1000, align = "right", fill = NA)) -> curated_v3_Bif_species_stat
+
+
+
+p_bif_specis_prop = curated_v3_Bif_species_stat %>%
+  na.omit() %>%
+  ggplot() + 
+  geom_smooth(aes(x=age+1,y=rprop, group=variable, color=variable), se = FALSE) +  
+  scale_y_log10("Proportion within Bifidobacterium (%)", labels=scales::percent) + scale_x_log10("Age (Years)") +
+  scale_color_brewer("", type="qual") +
+  theme_classic()
+
+ p_bif_specis_prev = curated_v3_Bif_species_stat %>%
+   na.omit() %>%
+   ggplot() + 
+  geom_smooth(aes(x=age+1,y=rprev, group=variable, color=variable), se = FALSE) +  
+  scale_y_log10("Prevalence (%)", labels=scales::percent) + scale_x_log10("Age (Years)") +
+  scale_color_brewer("", type="qual") +
+  theme_classic()
+
+
+
+```
+
+
+
+```{r fig.height=4, fig.width=10}
+
+cowplot::plot_grid(p_bif_genus, p_bif_specis_prop, align = "v", ncol = 2, rel_widths = c(1,1.7))
+
+
+```
+
+
+
+## Bifidobacterium in progenome
+
+
+```{r}
+
+
+
+breve   = readr::read_tsv(system.file("data-raw/bifidobacterium_progenome/specI_v3_Cluster1098.eggNOG_groups.tsv", package = "gutzilla"))
+longum  = readr::read_tsv(system.file("data-raw/bifidobacterium_progenome/specI_v3_Cluster1099.eggNOG_groups.tsv", package = "gutzilla"))
+ado     = readr::read_tsv(system.file("data-raw/bifidobacterium_progenome/specI_v3_Cluster2703.eggNOG_groups.tsv", package = "gutzilla"))
+bifidum = readr::read_tsv(system.file("data-raw/bifidobacterium_progenome/specI_v3_Cluster3116.eggNOG_groups.tsv", package = "gutzilla"))
+
+  
+bif_progenome_eggnog =
+rbind(data.frame(breve,species="Bifidobacterium breve"),
+  data.frame(longum,species="Bifidobacterium longum"),
+  data.frame(ado,species="Bifidobacterium adolescentis"),
+  data.frame(bifidum,species="Bifidobacterium bifidum")) 
+  
+
+bif_progenome_eggnog %>%
+  select(species,BIOSAMPLE_ID, EGGNOG_OGS, EGGNOG_FREE_TEXT_DESCRIPTION) %>%
+  group_by(EGGNOG_OGS) %>%
+  summarise(n=n()) %>%
+  arrange(desc(n))
+
+bif_progenome_eggnog %>%
+  select(species,BIOSAMPLE_ID, EGGNOG_OGS, EGGNOG_FREE_TEXT_DESCRIPTION) %>%
+  reshape2::dcast(EGGNOG_OGS~BIOSAMPLE_ID) %>%
+  tibble::column_to_rownames("EGGNOG_OGS") %>%
+  as.matrix() %>% heatmap()
+
+
+bif_progenome_eggnog %>%
+  filter(!is.na(CAZY)) %>%
+  #select(species,BIOSAMPLE_ID, EGGNOG_OGS, EGGNOG_FREE_TEXT_DESCRIPTION, CAZY) %>%
+  select(species,BIOSAMPLE_ID,EGGNOG_OGS, CAZY) %>%
+  unique() %>%
+  group_by(species,EGGNOG_OGS) %>%
+  mutate(eggnog_by_species=n()) %>%
+  ungroup() %>%
+  group_by(EGGNOG_OGS) %>%
+  filter(!all(eggnog_by_species>10)) %>%
+  filter(any(eggnog_by_species>20)) %>%
+  ungroup() %>%
+  mutate(EGGNOG_OGS = EGGNOG_OGS %>% forcats::fct_reorder(eggnog_by_species) ) %>%
+  ggplot() + 
+  geom_tile(aes(x=BIOSAMPLE_ID,y=CAZY)) + 
+  theme_classic() +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),  axis.ticks.y=element_blank()) +
+  facet_wrap(~species, nrow = 1, scales = "free_x")
+  
+  
+  
+
+```
+
+
+
+
