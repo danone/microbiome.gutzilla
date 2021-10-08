@@ -196,7 +196,7 @@ load("fit_genus_list_3000_1_curated_v3.rda")
 fit_genus_power_sampling_curated[[5]] = fit_genus_list
 
 
-fit_genus_power_sampling_curated = vector("list",15)
+
 load("fit_genus_list_30_2_curated_v3.rda")
 fit_genus_power_sampling_curated[[6]] = fit_genus_list
 load("fit_genus_list_100_2_curated_v3.rda")
@@ -209,7 +209,7 @@ load("fit_genus_list_3000_2_curated_v3.rda")
 fit_genus_power_sampling_curated[[10]] = fit_genus_list
 
 
-fit_genus_power_sampling_curated = vector("list",15)
+
 load("fit_genus_list_30_3_curated_v3.rda")
 fit_genus_power_sampling_curated[[11]] = fit_genus_list
 load("fit_genus_list_100_3_curated_v3.rda")

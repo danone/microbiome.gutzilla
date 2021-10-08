@@ -1000,8 +1000,8 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
       tidyr::unnest(tidy,.drop=TRUE) %>%
   arrange(p.value) %>%
   ungroup() %>%
-  mutate(p.value=p.adjust(p.value, method="fdr")) %>%
-  filter(p.value<0.05)
+  #mutate(p.value=p.adjust(p.value, method="fdr")) %>%
+  filter(p.value<0.05) %>% select(variable,p.value) %>% write.csv2(file="metadata_link_22vs26.csv")
 
 
 df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
@@ -1015,8 +1015,38 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
       tidyr::unnest(tidy,.drop=TRUE) %>%
   arrange(p.value) %>%
   ungroup() %>%
-  mutate(p.value=p.adjust(p.value, method="fdr"))%>%
-  filter(p.value<0.05)
+  #mutate(p.value=p.adjust(p.value, method="fdr"))%>%
+  filter(p.value<0.05) %>% select(variable,p.value) %>% write.csv2(file="metadata_link_66vs62.csv")
+
+
+
+library(caret)
+set.seed(666)
+train.control <- trainControl(method = "repeatedcv", 
+                              summaryFunction=twoClassSummary,
+                              number = 10, repeats = 5, classProbs=T, savePredictions = T)
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("2 2", "2 6")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>% select(-SAMPLE_NAME,-Enterotypes_id) %>% mutate(switch = paste0("p",switch) %>% gsub("\\ ","",.) %>% as.factor)   -> df_22_26
+  
+
+# Train the model
+suppressWarnings(model <- train(switch ~., data = df_22_26, method = "rf",
+               trControl = train.control))
+# Summarize the results
+print(model)
+
+
+library(pROC)
+# Select a parameter setting
+selectedIndices <- model$pred$mtry == 2
+#selectedIndices <- model$pred$ncomp == 1
+# Plot:
+plot.roc(model$pred$obs[selectedIndices],
+         model$pred$p26[selectedIndices])
+
+
 
 
 ```
@@ -1116,8 +1146,8 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
       tidyr::unnest(tidy,.drop=TRUE) %>%
   arrange(p.value) %>%
   ungroup() %>%
-  mutate(p.value=p.adjust(p.value, method="fdr")) %>%
-  filter(p.value<0.05)
+#mutate(p.value=p.adjust(p.value, method="fdr")) %>%
+  filter(p.value<0.05) %>% select(variable,p.value) %>% write.csv2(file="metadata_link_55vs53.csv")
 
 
 
@@ -1133,8 +1163,8 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
       tidyr::unnest(tidy,.drop=TRUE) %>%
   arrange(p.value) %>%
   ungroup() %>%
-  mutate(p.value=p.adjust(p.value, method="fdr")) %>%
-  filter(p.value<0.05)
+  #mutate(p.value=p.adjust(p.value, method="fdr")) %>%
+  filter(p.value<0.05) %>% select(variable,p.value) %>% write.csv2(file="metadata_link_33vs35.csv")
 
 
 
@@ -1152,21 +1182,46 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
       tidyr::unnest(tidy,.drop=TRUE) %>%
   arrange(p.value) %>%
   ungroup() %>%
-  mutate(p.value=p.adjust(p.value, method="fdr")) %>%
-  filter(p.value<0.05)
+#mutate(p.value=p.adjust(p.value, method="fdr")) %>%
+  filter(p.value<0.05) %>% select(variable,p.value) %>% write.csv2(file="metadata_link_33vs55.csv")
 
 
 
 
 
 
+library(caret)
+set.seed(666)
+train.control <- trainControl(method = "repeatedcv", 
+                              summaryFunction=twoClassSummary,
+                              number = 10, repeats = 5, classProbs=T, savePredictions = T)
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("5 5", "5 3")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>% select(-SAMPLE_NAME,-Enterotypes_id, -shannon) %>% mutate(switch = paste0("p",switch) %>% gsub("\\ ","",.) %>% as.factor)   -> df_55_53
+  
+
+# Train the model
+suppressWarnings(model <- train(switch ~., data = df_55_53, method = "rf",
+               trControl = train.control, preProc=c("center", "scale")))
+# Summarize the results
+print(model)
+
+varImp(model, scale = FALSE, useModel=TRUE)
+roc_imp <- filterVarImp(x = df_55_53 %>% select(-switch), y = df_55_53$switch)
+
+
+library(pROC)
+# Select a parameter setting
+selectedIndices <- model$pred$mtry == 2
+# Plot:
+plot.roc(model$pred$obs[selectedIndices],
+         model$pred$p55[selectedIndices])
 
 
 
-
-
-
-
+  
+  
 ```
 
 

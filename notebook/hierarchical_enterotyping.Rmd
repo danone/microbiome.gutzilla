@@ -8,7 +8,7 @@ output: html_notebook
 load genus abundance
 ```{r}
 
-genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "gutzilla")
 
 genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
 
@@ -177,7 +177,7 @@ load DMM model fit from boostrap
 # load("../fit_genus_list_5.rda")
 # fit_genus_bootstrap[[5]] = fit_genus_list
 
-load("fit_genus_bootstrap.rda")
+load("../fit_genus_bootstrap.rda")
 
 ```
 
@@ -263,10 +263,10 @@ lplc_df %>% as.data.frame %>%
   ggtitle("Laplace optimun") + 
   xlim(1,30) +  xlab("Dirichlet components")+
   theme_bw() + scale_x_continuous(limits = c(1,30), breaks = scales::pretty_breaks(n = 30)),
-labels = "AUTO"
-)
+labels = ""
+) -> figS8ABCD
 
-
+figS8ABCD
 
 ```
 
@@ -389,7 +389,12 @@ mixturewt(fit_genus_list[[seed]][[best_genus_lplc_idx]]) %>%
   tibble::rowid_to_column("k") %>% 
   ggplot() + 
   geom_bar(aes(x=k,y=theta),stat="identity") + 
-  geom_hline(yintercept = mixturewt(fit_genus_list[[seed]][[1]])$theta, col="red")
+  geom_hline(yintercept = mixturewt(fit_genus_list[[seed]][[1]])$theta, col="red") +
+  cowplot::theme_cowplot() +
+  ylab("theta") +
+  xlab("DMM community types") -> figS8E
+
+figS8E
 
 ```
 
@@ -634,6 +639,13 @@ enterotypes_prediction %>%
   #facet_wrap(~set) + 
   scale_x_continuous(limits = c(0,1.05), labels = scales::percent)
 
+enterotypes_prediction %>%
+  ggplot() + 
+  geom_histogram(aes(x=value), bins = 50) + 
+  #facet_wrap(~set) + 
+  scale_x_continuous(limits = c(0,1.05), labels = scales::percent) +
+  cowplot::theme_cowplot() -> figS8F
+
 
 ```
 
@@ -678,19 +690,36 @@ metadata %>%
 
 ```{r}
 
-shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "agp")
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "gutzilla")
 shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
 
 merge(enterotypes_prediction,shannon,by.x="sample_name", by.y="row.names")  -> enterotypes_alpha_div
   
 enterotypes_alpha_div %>% 
   ggplot()   + 
-  geom_boxplot(aes(x=paste0("m",Enterotypes_id %>% as.character),y=shannon, fill=set)) +
-  xlab("DMM based clusters") + ylab("alpha-diversity (shannon)")
+  geom_boxplot(aes(x=paste0("M",Enterotypes_id %>% as.character),y=shannon, fill=set)) +
+  xlab("DMM community types") + ylab("alpha-diversity (shannon)") +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -> figS8G
+figS8G
+
 
 
 ```
 
+## figure supp 8
+
+
+```{r fig.height=10, fig.width=16}
+
+(figS8ABCD/(figS8E+figS8F+figS8G + plot_layout(widths = c(1,1,1.5)))) + plot_layout(heights = c(2,1)) + plot_annotation(tag_levels = 'A') -> figS8
+
+figS8
+ggsave("figS8.pdf")
+
+
+
+```
 
 
 
@@ -935,5 +964,7 @@ enterotypes_by_UNSD_regions %>%
 
 
 ```
+
+
 
 

@@ -7,7 +7,7 @@ oxytol = readxl::read_xlsx("OXYTOL-1.3.xlsx", sheet = 1)
 
 oxytol %>%
   filter(`Obligate anerobic bacteria` %in% c(0,1,2)) %>%
-  mutate(`Obligate anerobic bacteria` = ifelse(`Obligate anerobic bacteria` == 2, 1, 0)) %>%
+  mutate(`Obligate anerobic bacteria` = ifelse(`Obligate anerobic bacteria` == 2, 1, `Obligate anerobic bacteria`)) %>%
   select(1:2) -> oxytol
 
 

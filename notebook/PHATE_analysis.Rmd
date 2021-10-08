@@ -21,7 +21,7 @@ devtools::load_all(reset = FALSE)
 load genus abundance
 ```{r}
 
-genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "gutzilla")
 
 genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
 
@@ -222,7 +222,7 @@ ggsave("genus_phate_prevotella_ratio.pdf")
 import shannon
 ```{r}
 
-shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "agp")
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "gutzilla")
 
 shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
 
@@ -232,15 +232,77 @@ shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
 
 genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(PHATE1=mean(PHATE1), PHATE2=mean(PHATE2)) -> enterotypes_phate_centroid
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
   #merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   merge(shannon, by.x="Row.names", by.y="row.names") %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=shannon), size=1, alpha=0.5) +
-  scale_color_viridis_c() 
-
+  scale_color_viridis_c("Shannon", option="cividis") +
+  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) +
+  cowplot::theme_cowplot() -> fig3B
+  
+fig3B
 ggsave("genus_phate_shannon.pdf")
 
 ```
+## figure 3 heatmap apg/curated and branches
+
+
+```{r fig.height=6, fig.width=16}
+#library(patchwork)
+
+#fig3A / fig3B + plot_layout(widths = c(3,1))
+
+cowplot::plot_grid(NA,fig3A,NA,fig3B, nrow=1, rel_widths = c(0.5,3,0.5,3), labels = c(NA,"A",NA,"B")) -> figure3
+figure3
+ggsave("figures/figure3.pdf")
+
+```
+
+
+
+
+## add DIET INDEX
+
+
+```{r}
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(PHATE1=mean(PHATE1), PHATE2=mean(PHATE2)) -> enterotypes_phate_centroid
+
+read.csv2(file="DIET_SCORE_IMP.csv") %>%
+  select(SAMPLE_NAME,DIET_INDEX_IMP) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(genus_phate$embedding, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(!is.na(DIET_INDEX_IMP)) %>%
+  filter(!is.na(Enterotypes_id)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=DIET_INDEX_IMP), size=1, alpha=0.5) +
+  #stat_summary_2d(aes(x=PHATE1, y=PHATE2, z=DIET_INDEX_IMP), fun = mean, bins = 60) +
+  #ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) +
+  scale_fill_gradientn(colours = heat.colors(10))
+
+read.csv2(file="DIET_SCORE_IMP.csv") %>%
+  select(SAMPLE_NAME,DIET_INDEX_IMP) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(genus_phate$embedding, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(!is.na(DIET_INDEX_IMP)) %>%
+  filter(!is.na(Enterotypes_id)) %>%
+  ggplot() + geom_point(aes(x=PHATE2, y=DIET_INDEX_IMP), size=1, alpha=0.5)
+
+
+
+```
+
+
+
 
 explore bacteroides and prevotella path
 

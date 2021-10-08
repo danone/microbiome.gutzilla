@@ -125,7 +125,7 @@ genus_phate_test =
   #as.data.frame() %>%
   #merge(enterotypes %>% filter(set != "outliers", value>0.80) %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% head
   
-  phateR::phate(gamma=1, seed=666, decay=40)
+  phateR::phate(gamma=1, seed=666, decay=40, t=40)
 
 
 curated_v3_genus %>%
@@ -137,6 +137,73 @@ curated_v3_genus %>%
   merge(genus_phate_test$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
   mutate(P_B_ratio = (`Prevotella`+1)/(`Bacteroides`+1)) %>%
   ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=P_B_ratio %>% log10())) + scale_color_viridis_c("log10(P/B ratio)")
+
+
+```
+
+### PHATE 3D
+
+```{r}
+
+
+genus_phate_3D = 
+  curated_v3_genus_prop %>%
+  filter(Genus %in% c(names(top_genus_mass_curated),"Methanobrevibacter")) %>%
+  tibble::column_to_rownames("Genus") %>%
+  select(all_of(sample_curated_to_select)) %>%
+  t() %>%
+  #as.data.frame() %>%
+  #merge(enterotypes %>% filter(set != "outliers", value>0.80) %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% head
+  
+  phateR::phate(gamma=0, seed=666, ndim=3)
+
+save(genus_phate_3D, curated_v3_genus, file="phate_3D_genus_count.rda")
+
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Prevotella") %>% 
+  merge(genus_phate_3D$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(P_B_ratio = (`Prevotella`+1)/(`Bacteroides`+1)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE2, col=P_B_ratio %>% log10())) + scale_color_viridis_c("log10(P/B ratio)")
+
+
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Prevotella") %>% 
+  merge(genus_phate_3D$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(P_B_ratio = (`Prevotella`+1)/(`Bacteroides`+1)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y= PHATE3, col=P_B_ratio %>% log10())) + scale_color_viridis_c("log10(P/B ratio)")
+
+
+
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Prevotella") %>% 
+  merge(genus_phate_3D$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(P_B_ratio = (`Prevotella`+1)/(`Bacteroides`+1)) %>% 
+plotly::plot_ly(x=.[,"PHATE1"], y=.[,"PHATE2"], z=.[,"PHATE3"], type="scatter3d", color=.$P_B_ratio %>% log10())
+
+curated_v3_genus %>%
+  tibble::column_to_rownames("Genus") %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("sample_name") %>%
+  select("sample_name", "Bacteroides","Prevotella") %>% 
+  merge(genus_phate_3D$embedding %>% as.data.frame, by.x="sample_name", by.y="row.names") %>%
+  mutate(P_B_ratio = (`Prevotella`+1)/(`Bacteroides`+1)) %>% 
+plotly::plot_ly(x=.[,"PHATE1"], y=.[,"PHATE2"], z=.[,"PHATE3"], type="scatter3d", color=.$P_B_ratio %>% log10(), size = 1)
+
+
+
 
 
 ```
@@ -386,8 +453,10 @@ genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
   merge(GMHI, by.x="Row.names", by.y="row.names" ) %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=GMHI), size=1, alpha=0.5) +
-  scale_color_viridis_c("GMHI", option="cividis") + theme_classic() +
-  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
+  scale_color_viridis_c("GMHI", option="cividis") + cowplot::theme_cowplot() +
+  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) -> fig1F
+
+fig1F
 
 ggsave("gmhi_curated_v3_phate.pdf")
 
@@ -418,8 +487,10 @@ genus_phate$embedding %>%
   merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
   merge(shannon_curated_v3, by.x="Row.names", by.y="row.names" ) %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=shannon), size=1, alpha=0.5) +
-  scale_color_viridis_c("Shannon", option="cividis") + theme_classic() +
-  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id))
+  scale_color_viridis_c("Shannon", option="cividis") + cowplot::theme_cowplot() +
+  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) -> fig1E
+
+fig1E
 
 ggsave("shannon_curated_v3_phate.pdf")
 
@@ -446,29 +517,29 @@ genus_phate_enterotypes_curated_v3 %>%
   dplyr::sample_n(size=1000) -> genus_phate_enterotypes_curated_v3_sub
       
       
-pto <- slingshot(
-  genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),
-  genus_phate_enterotypes_curated_v3_sub$Enterotypes_id , approx_points = 150)
-
-
-lin1 <- getLineages(genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),
-  genus_phate_enterotypes_curated_v3_sub$Enterotypes_id %>% as.character() )
-
-lin1
-
-plot(genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),  asp = 1)
-plot(lin1, lwd = 3, col = 'black')
-
-
-pseudo <- slingPseudotime(pto)
-curve_weight <- slingCurveWeights(pto)      
-
-
-
-genus_phate_enterotypes_curated_v3_sub
-
-plot(genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),  asp = 1)
-lines(pto, lwd = 3)
+# pto <- slingshot(
+#   genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),
+#   genus_phate_enterotypes_curated_v3_sub$Enterotypes_id , approx_points = 150)
+# 
+# 
+# lin1 <- getLineages(genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),
+#   genus_phate_enterotypes_curated_v3_sub$Enterotypes_id %>% as.character() )
+# 
+# lin1
+# 
+# plot(genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),  asp = 1)
+# plot(lin1, lwd = 3, col = 'black')
+# 
+# 
+# pseudo <- slingPseudotime(pto)
+# curve_weight <- slingCurveWeights(pto)      
+# 
+# 
+# 
+# genus_phate_enterotypes_curated_v3_sub
+# 
+# plot(genus_phate_enterotypes_curated_v3_sub %>% select(PHATE1,PHATE2),  asp = 1)
+# lines(pto, lwd = 3)
 
 
 
@@ -481,23 +552,211 @@ genus_phate_enterotypes_curated_v3 %>%
   ape::mst() -> M
 
 
+genus_phate_enterotypes_curated_v3 %>% 
+  #filter(set=="train") %>%
+  
+  ggplot() + geom_bar(aes(x=Enterotypes_id, fill=Enterotypes_id)) + facet_wrap(~set)
 
-
-phate_dmm_centroid = genus_phate_enterotypes_curated_v3 %>%
-  group_by(Enterotypes_id) %>%
-  summarise(PHATE1=mean(PHATE1),PHATE2=mean(PHATE2)) %>%
-  tibble::column_to_rownames("Enterotypes_id")
-    
 
 plot(M, x1 = phate_dmm_centroid$PHATE1, x2 = phate_dmm_centroid$PHATE2)
 
+M %>%  
+  igraph::graph_from_adjacency_matrix() %>%
+  as_tbl_graph() %>%
+  tidygraph::activate(nodes) %>%
+  mutate(size =phate_dmm_centroid$n ) %>%
+  ggraph(layout = 'kk') + 
+    geom_edge_link() + 
+    geom_node_point(mapping=aes(size=log(size^2)) , colour = 'steelblue') +
+    geom_node_text(aes(label = name), colour = 'white', vjust = 0.4) 
 
+
+
+phate_dmm_centroid = genus_phate_enterotypes_curated_v3 %>%
+  #filter(set=="train") %>%
+  group_by(Enterotypes_id) %>%
+  summarise(x=mean(PHATE1),y=mean(PHATE2), n=n()) %>%
+  tibble::column_to_rownames("Enterotypes_id")
+
+M %>%  
+  igraph::graph_from_adjacency_matrix() %>%
+  ggraph(layout = 'manual', circular= FALSE, x = phate_dmm_centroid[,1], y=phate_dmm_centroid[,2]) + 
+  geom_point(data = as.data.frame(genus_phate$embedding), aes(x=PHATE1, y=PHATE2), color="grey", alpha=0.1, size=1) +
+    geom_edge_link() + 
+    geom_node_point(size=6, data = phate_dmm_centroid, mapping=aes(color=n) ) + 
+  scale_color_gradient("Nb of\nsamples") +
+    geom_node_text(aes(label = name), colour = 'white', vjust = 0.4) + 
+  cowplot::theme_cowplot() + xlab("PHATE 1") + ylab("PHATE 2") -> fig1D
+
+fig1D
+
+
+
+# phate_dmm_centroid %>%
+#   tibble::rownames_to_column("partition") %>%
+#   ggplot() + geom_bar(aes(y=n, x=partition %>% as.character), stat=identity())
       
 ```
 
 
 
+## load DMM models
 
 
+
+```{r fig.height=6, fig.width=10}
+
+load("genus_alpha_weight_curated.rda")
+
+genus_alpha_weight_curated %>%
+  
+ggplot() + 
+  geom_tile(aes(x=variable,y=taxa,fill=log10(value))) + 
+  scale_fill_viridis_c("DMM model\nalpha (log10)") +
+  ylab("taxa") +
+  xlab("DMM community types") -> figS5A
+
+
+enterotypes %>%
+  merge(shannon_curated_v3, by.x="sample_name", by.y="row.names" ) %>%
+  mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(shannon=median(shannon)) %>%
+  merge(genus_alpha_weight_curated, by.x="Enterotypes_id", by.y="variable") %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% forcats::fct_reorder(shannon, median)) %>%
+  ggplot() + 
+  geom_tile(aes(x=Enterotypes_id,y=taxa,fill=log10(value))) + 
+  scale_fill_viridis_c("DMM model\nalpha (log10)") +
+  ylab("taxa") +
+  xlab("DMM community types") +
+  cowplot::theme_cowplot() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -> figS5A
+
+
+
+fig1A = figS5A
+
+```
+
+```{r}
+
+shannon_curated_v3
+
+
+enterotypes %>%
+  merge(shannon_curated_v3, by.x="sample_name", by.y="row.names" ) %>%
+  mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(shannon=median(shannon)) %>%
+  merge(genus_alpha_weight_curated, by.x="Enterotypes_id", by.y="variable") %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% forcats::fct_reorder(shannon, median)) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(shannon = median(shannon)) %>%
+  mutate(alpha = "alpha") %>%
+ggplot() + 
+  geom_tile(aes(x=Enterotypes_id, y=alpha,fill=shannon)) + 
+  scale_fill_continuous("alpha-diversity median") +
+  ylab("") +
+  xlab("DMM community types")
+
+
+enterotypes %>%
+  merge(shannon_curated_v3, by.x="sample_name", by.y="row.names" ) %>%
+  mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>%
+  merge(genus_alpha_weight_curated, by.x="Enterotypes_id", by.y="variable") %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% forcats::fct_reorder(shannon, median)) %>%
+  ggplot() + 
+  geom_boxplot(aes(x=Enterotypes_id, y=shannon)) + 
+  ylab("alpha-diversity") +
+  xlab("DMM community types") +
+  cowplot::theme_cowplot() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -> fig1B
+
+
+
+```
+
+```{r}
+
+enterotypes %>%
+  merge(shannon_curated_v3, by.x="sample_name", by.y="row.names" ) %>%
+  mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% forcats::fct_reorder(shannon, median)) %>%
+  ggplot() + geom_bar(aes(x=Enterotypes_id)) +
+  xlab("DMM community types") +
+  ylab("number of\nsamples") +
+  cowplot::theme_cowplot() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -> fig1C
+  
+  
+
+
+```
+
+
+### fig 1 ABC
+
+
+
+```{r fig.height=12, fig.width=15}
+
+library(patchwork)
+
+
+((fig1A|fig1B/fig1C) / ((fig1D + fig1E)/(fig1F +  fig1G)) + plot_layout(heights = c(0.75,1)) ) + plot_annotation(tag_levels = 'A')
+
+
+ggsave("figures/Figure1.pdf")
+
+```
+
+## link bifid cluster and age
+```{r fig.height=5, fig.width=12}
+
+
+sampleMetadata %>%
+  mutate(age_category2 =
+           case_when(
+             age <= 3 ~ "00s",
+             age <= 10 & age > 3 ~ "03+",
+             age <=20 & age > 10 ~ "10s",
+             age <=30 & age > 20 ~ "20s",
+             age <=40 & age > 30 ~ "30s",
+             age <=50 & age > 40 ~ "40s",
+             age <=60 & age > 50 ~ "50s",
+             age <=70 & age > 60 ~ "60s",
+             age > 70 ~ "70+",
+             TRUE ~ as.character(age),
+
+           )) -> metadata
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(shannon_curated_v3, by.x="Row.names", by.y="row.names" ) %>%
+  merge(metadata %>% select(sample_id,age_category2, age), by.x="Row.names", by.y="sample_id") %>%
+  filter(!is.na(age)) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=age+1), size=1, alpha=0.5) +
+  scale_color_viridis_c("Age", option="plasma") + cowplot::theme_cowplot() + facet_wrap(~age_category2) -> figS7A
+
+
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(shannon_curated_v3, by.x="Row.names", by.y="row.names" ) %>%
+  merge(metadata %>% select(sample_id,age_category2, age), by.x="Row.names", by.y="sample_id") %>%
+  filter(!is.na(age)) %>%
+  mutate(Enterotypes_id = paste("m",Enterotypes_id) %>% forcats::fct_reorder(age)) %>%
+  ggplot() + geom_bar(aes(x=Enterotypes_id, fill=age_category2), position="fill") + 
+  scale_fill_viridis_d("Age", option="plasma") +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  scale_y_continuous(labels=scales::percent) +
+  ylab("proportion of samples") +
+  xlab("DMM community types") -> figS7B
+
+
+
+figS7A + figS7B + plot_annotation(tag_levels = "A")
+
+ggsave("figures/figS7.pdf")
+
+```
 
 

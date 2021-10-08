@@ -1359,7 +1359,8 @@ regm_tidy %>%
 #   mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median)) %>%
 #   mutate(variable = variable %>% forcats::fct_reorder(s)) %>%
 #   ggplot() + geom_tile(aes(x=y.level, y=variable, fill=estimate)) + scale_fill_gradient2() + facet_grid(.~branch, scale="free_x", space = "free_x")
-  
+
+load("regm_tidy.rda")  
   
   regm_tidy %>%
     mutate(variable_group = "disease") %>%
@@ -1389,8 +1390,11 @@ regm_tidy %>%
     geom_point(aes(x=y.level, y=variable, alpha=p.value<0.05)) + 
     scale_fill_gradient2("Log OR", low=scales::muted("blue"), mid="white", high=scales::muted("red")) +
     facet_grid(variable_group~branch, scale="free", space = "free") + 
-  xlab("Microbiome partition\nordered by branch and by alpha-diversity") + ylab("")
-    
+    cowplot::theme_cowplot() +
+    theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank()) +
+  xlab("Microbiome partition\nordered by branch and by alpha-diversity") + ylab("") -> fig4A
+    fig4A
   ggsave("partitions_multinomial_logOR.pdf", height = 12, width = 14)
   
   
@@ -1429,13 +1433,184 @@ regm_tidy %>%
   ggplot() +
   geom_bar(aes(x=variable,y=estimate,fill=branch), stat="identity", position = "stack") +
   facet_grid(variable_group~., scale="free", space = "free") + coord_flip() + scale_fill_brewer(type="qual") +
-  xlab("") + ylab("absolute cummulated Log OR")
+  xlab("") + ylab("absolute cummulated Log OR") +
+  cowplot::theme_cowplot() +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank()) -> fig4B
   
-  
+
+
+
+
+
+ regm_tidy %>%
+    mutate(variable_group = "disease") %>%
+    mutate(variable_group = 
+             case_when(grepl("FREQUENCY", variable) ~ "Diet, demographic and lifestyle",
+                       grepl("ALCOHOL", variable) ~ "Diet, demographic and lifestyle",
+                       variable %in% c("AGE_YEARS","SEX","DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet, demographic and lifestyle",
+                       grepl("SPECIALIZED", variable) ~"Specialized Diet",
+                       grepl("REGION", variable) ~ "Region of Birth",
+                       TRUE ~ "Health associated"
+                            )) %>%
+    merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
+  mutate(estimate = log(estimate)) %>%
+  mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+  group_by(variable) %>%
+  mutate(s=mean(abs(estimate2))) %>% 
+  filter(s>0) %>%
+  ungroup() %>%
+  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = FALSE)) %>%
+  mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = FALSE)) %>%  
+  group_by(y.level, variable_group, branch) %>%
+  summarise(estimate=sum(abs(estimate2))) %>%
+  ggplot() +
+  geom_bar(aes(x=y.level,y=estimate,fill=variable_group), stat="identity", position = "stack") +
+  facet_grid(.~branch, scale="free", space = "free") + scale_fill_brewer("",type="qual", palette = "Set2") +
+  xlab("") + ylab("absolute cummulated Log OR") + 
+   cowplot::theme_cowplot() -> fig4C
 
 ```
 
 
+```{r fig.height=15, fig.width=25}
+
+  regm_tidy %>%
+    mutate(variable_group = "disease") %>%
+    mutate(variable_group = 
+             case_when(grepl("FREQUENCY", variable) ~ "Diet, demographic and lifestyle",
+                       grepl("ALCOHOL", variable) ~ "Diet, demographic and lifestyle",
+                       variable %in% c("AGE_YEARS","SEX","DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet, demographic and lifestyle",
+                       grepl("SPECIALIZED", variable) ~"Specialized Diet",
+                       grepl("REGION", variable) ~ "Region of Birth",
+                       TRUE ~ "Health associated"
+                            )) %>%
+    merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
+  mutate(estimate = log(estimate)) %>%
+  mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+  group_by(variable) %>%
+  mutate(s=mean(abs(estimate2))) %>% 
+  filter(s>0) %>%
+  ungroup() %>%
+  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
+  mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = TRUE)) %>% 
+  mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>%
+  ggplot() + 
+    geom_tile(aes(y=y.level, x=variable, fill=estimate)) + 
+    geom_point(aes(y=y.level, x=variable, alpha=p.value<0.05)) + 
+    scale_fill_gradient2("Log OR", low=scales::muted("blue"), mid="white", high=scales::muted("red")) +
+    facet_grid(branch~variable_group, scale="free", space = "free") + 
+    cowplot::theme_cowplot() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+    xlab("Microbiome partition\nordered by branch and by alpha-diversity") + ylab("DMM community types") -> fig4A
+    fig4A
+  #ggsave("partitions_multinomial_logOR.pdf", height = 12, width = 14)
+  
+  
+ 
+
+  
+regm_tidy %>%
+    mutate(variable_group = "disease") %>%
+    mutate(variable_group = 
+             case_when(grepl("FREQUENCY", variable) ~ "Diet, demographic and lifestyle",
+                       grepl("ALCOHOL", variable) ~ "Diet, demographic and lifestyle",
+                       variable %in% c("AGE_YEARS","SEX","DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet, demographic and lifestyle",
+                       grepl("SPECIALIZED", variable) ~"Specialized Diet",
+                       grepl("REGION", variable) ~ "Region of Birth",
+                       TRUE ~ "Health associated"
+                            )) %>%
+    merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
+  mutate(estimate = log(estimate)) %>%
+  mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+  group_by(variable) %>%
+  mutate(s=mean(abs(estimate2))) %>% 
+  filter(s>0) %>%
+  ungroup() %>%
+  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
+  mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = TRUE)) %>%  
+  mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>%
+  group_by(variable,variable_group,branch) %>%
+  summarise(estimate=sum(abs(estimate2))) %>%
+  ggplot() +
+  geom_bar(aes(y=variable,x=estimate,fill=branch), stat="identity", position = "stack") +
+  facet_grid(.~variable_group, scale="free", space = "free") + coord_flip() + scale_fill_brewer(type="qual") +
+  ylab("") + xlab("absolute cummulated\nLog OR") +
+
+  cowplot::theme_cowplot() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank()) -> fig4B
+  
+
+
+
+
+
+ regm_tidy %>%
+    mutate(variable_group = "disease") %>%
+    mutate(variable_group = 
+             case_when(grepl("FREQUENCY", variable) ~ "Diet, demographic and lifestyle",
+                       grepl("ALCOHOL", variable) ~ "Diet, demographic and lifestyle",
+                       variable %in% c("AGE_YEARS","SEX","DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet, demographic and lifestyle",
+                       grepl("SPECIALIZED", variable) ~"Specialized Diet",
+                       grepl("REGION", variable) ~ "Region of Birth",
+                       TRUE ~ "Health associated"
+                            )) %>%
+    merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
+  mutate(estimate = log(estimate)) %>%
+  mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+  group_by(variable) %>%
+  mutate(s=mean(abs(estimate2))) %>% 
+  filter(s>0) %>%
+  ungroup() %>%
+  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
+  mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = TRUE)) %>%  
+   mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>%
+  group_by(y.level, variable_group, branch) %>%
+  summarise(estimate=sum(abs(estimate2))) %>%
+  ggplot() +
+  geom_bar(aes(y=y.level,x=estimate,fill=variable_group), stat="identity", position = "stack") +
+  facet_grid(branch~., scale="free", space = "free") + scale_fill_brewer("",type="qual", palette = "Set2") +
+  ylab("") + xlab("absolute cummulated Log OR") + 
+   cowplot::theme_cowplot() -> fig4C
+
+
+ (fig4B + plot_spacer() + plot_layout(widths = c(3,1.22))) /
+   (fig4A + fig4C + plot_layout(widths = c(3,1))) + plot_layout(heights = c(1,3)) 
+ 
+ ggsave("figures/figure4.pdf")
+ 
+
+```
+
+
+
+
+```{r fig.height=20, fig.width=20}
+
+fig4A + coord_flip()
+
+
+(fig4A+fig4B+ plot_layout(widths = c(2,1))) / (fig4C) + plot_layout(heights = c(3,1))
+
+
+```
 
 
 ```{r}

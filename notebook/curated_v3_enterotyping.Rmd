@@ -115,7 +115,7 @@ lplc_df %>% as.data.frame %>%
 labels = "AUTO"
 )
 
-
+ggsave(filename = "figures/figS3.pdf")
 
 ```
 
@@ -146,6 +146,8 @@ enterotypes_curated =
 
 
 ```{r fig.height=6, fig.width=14}
+
+
 ###################################################
 ### code chunk number 11: posterior-mean-diff
 ###################################################
@@ -165,18 +167,38 @@ cdiff <- cumsum(diff[o]) / sum(diff)
 df <- head(cbind(Mean=p0[o], pbest[o,], diff=diff[o], cdiff), 30)
 df %>% as.data.frame()
 
-df_gutzilla = df %>% as.data.frame()
+df_curated_v3 = df %>% as.data.frame()
 
 
-m_order = df %>% as.data.frame() %>% select(-Mean, -diff,-cdiff) %>% t %>% dist() %>% hclust(method="complete") %>% unclass %>% .$order
- 
+m_order = df %>% as.data.frame() %>% select(-Mean, -diff,-cdiff)  %>% BiotypeR::dist.JSD() %>% hclust(method="complete") %>% unclass %>% .$order
+#m_order = df %>% as.data.frame() %>% select(-Mean, -diff,-cdiff)  %>% t %>% dist() %>% hclust(method="complete") %>% unclass %>% .$order 
+
 
 df %>% as.data.frame() %>%
   tibble::rownames_to_column("taxa") %>%
   mutate(taxa=factor(taxa, levels=row.names(df))) %>% 
   reshape2::melt(id.vars="taxa") %>%
   filter(!variable %in% c("Mean","diff","cdiff")) %>%
-  mutate(variable = variable %>% factor(levels=paste0("m",1:24)[m_order]) ) %>%
+  mutate(variable = variable %>% as.character) %>% 
+  mutate(variable = variable %>% factor(levels=paste0("m",1:24)[m_order]) )  -> genus_alpha_weight_curated
+
+save(genus_alpha_weight_curated, file="genus_alpha_weight_curated.rda")
+
+
+df %>% as.data.frame() %>%
+  tibble::rownames_to_column("taxa") %>%
+  mutate(taxa=factor(taxa, levels=row.names(df))) %>% 
+  reshape2::melt(id.vars="taxa") %>%
+  filter(variable %in% c("Mean","diff","cdiff"))
+
+
+df %>% as.data.frame() %>%
+  tibble::rownames_to_column("taxa") %>%
+  mutate(taxa=factor(taxa, levels=row.names(df))) %>% 
+  reshape2::melt(id.vars="taxa") %>%
+  filter(!variable %in% c("Mean","diff","cdiff")) %>%
+  mutate(variable = variable %>% as.character) %>% 
+  mutate(variable = variable %>% factor(levels=paste0("m",1:24)[m_order]) ) %>% #pull(variable)
   #group_by(taxa) %>%
   #mutate(total = sum(value)) %>%
   #mutate(value=value/total) %>%
@@ -185,6 +207,7 @@ df %>% as.data.frame() %>%
   scale_fill_viridis_c("DMM model alpha") +
   ylab("taxa") +
   xlab("DMM components")
+  
   
 ```
 
@@ -207,7 +230,12 @@ mixturewt(fit_genus_list[[seed]][[best_genus_lplc_idx]]) %>%
   tibble::rowid_to_column("k") %>% 
   ggplot() + 
   geom_bar(aes(x=k,y=theta),stat="identity") + 
-  geom_hline(yintercept = mixturewt(fit_genus_list[[seed]][[1]])$theta, col="red")
+  geom_hline(yintercept = mixturewt(fit_genus_list[[seed]][[1]])$theta, col="red") + 
+  xlab("DMM community types") + ylab("theta extracted from DMM modelling") +
+  scale_x_continuous(breaks = 1:24) +
+  cowplot::theme_cowplot() -> figS4A
+  
+figS4A  
 
 ```
 
@@ -234,7 +262,7 @@ df %>% as.data.frame() %>%
   #mutate(taxa2=taxa) %>%
   #mutate(taxa2=ifelse())
     as_tibble %>%
-  .[c(1:3,5,29,4),] %>%
+  .[c(1:3,8,11,30),] %>%
   reshape2::melt(id.vars="taxa") %>%
   group_by(variable) %>%
   mutate(ymax=cumsum(value)) %>%
@@ -269,16 +297,32 @@ predict(fit_genus_list[[1]][[best_genus_lplc_idx]], t(curated_v3_genus_count), a
   dplyr::rename(`sample_name`="Var1", Enterotypes_id="Var2") %>%
   mutate(set=ifelse(sample_name %in% row.names(attr(fit_genus_list[[1]][[best_genus_lplc_idx]],"group")), "train", "predicted")) -> enterotypes_prediction
 
+table(enterotypes_prediction$value > 0.50) %>% prop.table()
+table(enterotypes_prediction$value > 0.80) %>% prop.table()
 
 enterotypes_prediction %>%
-  ggplot() + geom_histogram(aes(x=value, fill=value>0.80), bins = 50) + 
+  ggplot() + geom_histogram(aes(x=value), bins = 50) + 
   #facet_wrap(~set) + 
-  scale_x_continuous(limits = c(0,1.05), labels = scales::percent)
+  scale_x_continuous(limits = c(0,1.05), labels = scales::percent) +
+  xlab("classification confidence") +
+  ylab("number of samples") +
+  cowplot::theme_cowplot() -> figS4B
+
+figS4B
 
 
 ```
 
 
+```{r fig.height=4, fig.width=10}
+
+
+cowplot::plot_grid(figS4A,figS4B, labels = "AUTO", rel_widths = c(1.7,1))
+
+ggsave("figures/figS4.pdf", h=5, w=10)
+
+
+```
 
 
 
@@ -302,6 +346,55 @@ enterotypes_prediction %>%
 
 
 
+
+```{r fig.height=5, fig.width=10}
+
+row.names(df_gutzilla) = sapply(row.names(df_gutzilla) %>% strsplit(split="g__"), function(x) ifelse(is.na(x[2]), paste0(sample(LETTERS, 1),sample(LETTERS, 1)), x[2]))
+
+colnames(df_gutzilla) = colnames(df_gutzilla) %>% gsub("m","M", .) 
+
+merge(df_curated_v3 %>% select(-m19,-m22,-m23,-m24),df_gutzilla, by="row.names") %>% 
+  select(contains("m",ignore.case = TRUE)) %>% 
+  select(-Mean.x,-Mean.y, -Row.names) %>% 
+  colnames() %>%
+  tibble::tibble(Microbiota=.) %>%
+  mutate(dataset=ifelse(Microbiota %>% grepl("\\M", .), "AGP","CuratedMGdb")) %>%
+  #mutate(random=rnorm(18+19)) %>%
+  #merge(microbiota_types_alpha_diversity, by.x="Microbiota", by.y="Enterotypes_id") %>%
+  #select(-rank, -Shannon) %>%
+  #select(-rank) %>%
+  #dplyr::rename(`Shannon scaled`="scale") %>%
+  #merge(diet_coa, by.x="Microbiota", by.y ="row.names", all = TRUE ) %>%
+  #select(-Axis2) %>%
+  #dplyr::rename
+  tibble::column_to_rownames("Microbiota") -> microbiota_annotation
+
+
+merge(df_curated_v3%>% select(-m19,-m22,-m23,-m24),df_gutzilla, by="row.names") %>% 
+  select(contains("m",ignore.case = TRUE)) %>% 
+  select(-Mean.x,-Mean.y) %>%
+  #mutate(Row.names = Row.names %>% str_split_fixed(pattern =";",  n = 6) %>% .[,6] %>% gsub("g__","",.)) %>%
+  tibble::column_to_rownames("Row.names") %>% as.matrix() -> microbiota_types
+
+microbiota_types_jsd = Rfast::Dist(t(microbiota_types)) 
+colnames(microbiota_types_jsd) = row.names(microbiota_types_jsd) = colnames(microbiota_types)
+
+microbiota_types_jsd = microbiota_types_jsd %>% as.dist() %>% sqrt()
+
+ann_colors = list(
+    dataset = c(AGP="pink", CuratedMGdb="lightblue"),
+    `Shannon scaled` = RColorBrewer::brewer.pal(4, name="OrRd"),
+    Axis1 = RColorBrewer::brewer.pal(4, name="BrBG"),
+    Axis2 = RColorBrewer::brewer.pal(4, name="BrBG")
+)
+
+
+  #as.matrix %>% #log10() %>%
+  pheatmap::pheatmap(mat=log10(microbiota_types), cutree_cols = 7, annotation_col = microbiota_annotation, cellwidth = 10, cellheight = 20, clustering_distance_cols = microbiota_types_jsd, annotation_colors = ann_colors, color=viridis::viridis_pal()(100)) %>% ggplotify::as.ggplot() -> fig3A
+fig3A
+ggsave("dmm_types_clustering_curated_agp.pdf")
+
+```
 
 
 
