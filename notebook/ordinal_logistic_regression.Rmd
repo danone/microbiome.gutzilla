@@ -1393,7 +1393,7 @@ load("regm_tidy.rda")
     cowplot::theme_cowplot() +
     theme(axis.title.x=element_blank(),
         axis.text.x=element_blank()) +
-  xlab("Microbiome partition\nordered by branch and by alpha-diversity") + ylab("") -> fig4A
+  ylab("Microbiome partition\nordered by branch and by alpha-diversity") + ylab("AGP questionnaire variable") -> fig4A
     fig4A
   ggsave("partitions_multinomial_logOR.pdf", height = 12, width = 14)
   
@@ -1501,8 +1501,20 @@ regm_tidy %>%
   filter(s>0) %>%
   ungroup() %>%
   mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
+  
+  mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>% #pull(variable) %>% grep("COLL",.)
+  filter(!(variable %in% grep("COLL", variable, value = TRUE) )) %>%
+  
+  mutate(variable = gsub("_FREQUENCY|SPECIALIZED_DIET_|ALCOHOL_TYPES_|REGION_BIRTH_","", variable)) %>%
+  mutate(variable = 
+           case_when(grepl("NO_FOOD", variable)~"No food allergy",
+                     grepl("not.eat.gluten", variable)~"Gluten intolerance",
+                     grepl("gluten.IgG", variable)~"Gluten allergy (IgG)",
+                     grepl("WESTENPRICE", variable)~"Low processed",
+                     grepl("OTHER_RESTRICTIONS", variable)~"Other restrictions",
+                     TRUE ~ variable)) %>%
+  mutate(variable = gsub("_|\\."," ", variable)) %>%
   mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = TRUE)) %>% 
-  mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>%
   ggplot() + 
     geom_tile(aes(y=y.level, x=variable, fill=estimate)) + 
     geom_point(aes(y=y.level, x=variable, alpha=p.value<0.05)) + 
@@ -1510,7 +1522,7 @@ regm_tidy %>%
     facet_grid(branch~variable_group, scale="free", space = "free") + 
     cowplot::theme_cowplot() +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-    xlab("Microbiome partition\nordered by branch and by alpha-diversity") + ylab("DMM community types") -> fig4A
+    ylab("Microbiome partition\nordered by branch and by alpha-diversity") + xlab("AGP questionnaire data") -> fig4A
     fig4A
   #ggsave("partitions_multinomial_logOR.pdf", height = 12, width = 14)
   
@@ -1544,10 +1556,11 @@ regm_tidy %>%
   mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>%
   group_by(variable,variable_group,branch) %>%
   summarise(estimate=sum(abs(estimate2))) %>%
+   filter(!(variable %in% grep("COLL", variable, value = TRUE) )) %>%
   ggplot() +
   geom_bar(aes(y=variable,x=estimate,fill=branch), stat="identity", position = "stack") +
   facet_grid(.~variable_group, scale="free", space = "free") + coord_flip() + scale_fill_brewer(type="qual") +
-  ylab("") + xlab("absolute cummulated\nLog OR") +
+  ylab("") + xlab("absoluted cummulated\nmodel weights") +
 
   cowplot::theme_cowplot() +
   theme(axis.title.x=element_blank(),
@@ -1575,19 +1588,21 @@ regm_tidy %>%
   mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
   mutate(estimate = log(estimate)) %>%
   mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+     filter(!(variable %in% grep("COLL", variable, value = TRUE) )) %>%
   group_by(variable) %>%
   mutate(s=mean(abs(estimate2))) %>% 
   filter(s>0) %>%
   ungroup() %>%
   mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
-  mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = TRUE)) %>%  
+  mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = FALSE)) %>%  
    mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>%
   group_by(y.level, variable_group, branch) %>%
   summarise(estimate=sum(abs(estimate2))) %>%
+  
   ggplot() +
   geom_bar(aes(y=y.level,x=estimate,fill=variable_group), stat="identity", position = "stack") +
   facet_grid(branch~., scale="free", space = "free") + scale_fill_brewer("",type="qual", palette = "Set2") +
-  ylab("") + xlab("absolute cummulated Log OR") + 
+  ylab("") + xlab("absoluted cummulated model weights") + 
    cowplot::theme_cowplot() -> fig4C
 
 
