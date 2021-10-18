@@ -269,6 +269,9 @@ metadata %>%
   filter(n>1) %>%
   
   mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  
+  filter(days == 0 | days > 60*60*24) %>%
+  
   group_by(HOST_SUBJECT_ID) %>%
   arrange(HOST_SUBJECT_ID, days) %>%
   mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
@@ -290,12 +293,13 @@ metadata %>%
   mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), branches_before=lag(branches), days_delta= days - lag(days)) %>% 
   filter(sample_order >1) %>%
   mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
-  mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
+  mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24*7,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
   ggplot() + geom_bar(aes(x=days_delta_bins, fill=branches), position="fill") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   scale_y_continuous(labels = scales::percent) + scale_fill_brewer("branches after", type="qual") +
-  facet_wrap(~branches_before) + xlab("time range between two samples") + ylab("Samples %") + scale_x_discrete(labels=c("day","4 months", "4 to 12 months", "> 12 months"))
+  facet_wrap(~branches_before) + xlab("time range between two samples") + ylab("Samples %") + scale_x_discrete(labels=c("week","4 months", "4 to 12 months", "> 12 months")) -> figS9A
 
+figS9A
 
 ```
 ## compute prevotella bacteroides ratio within days
@@ -402,8 +406,12 @@ host_sample_enterotypes_branches_P_B_ratio %>%
   geom_abline(slope=1,intercept = 2.5, linetype=2) +
   xlab("P/B ratio 1st sample") + ylab("P/B ratio 2nd sample") +
   scale_size_discrete("less than\n60 minutes") +
-  scale_colour_discrete("")
+  scale_colour_discrete("") +
+  cowplot::theme_cowplot() -> figS9B
   
+figS9B
+
+
   
   host_sample_enterotypes_branches_P_B_ratio %>%
   filter(branches.x %in% c("Bacteroides DMM types","Prevotella DMM types"),
@@ -498,6 +506,17 @@ host_sample_enterotypes_branches_P_B_ratio %>%
   xtabs(~ paste(branches.x,"->",branches.y) + daytime, data=.) %>%
   chisq.test()
 
+
+```
+
+
+## figure supp 9
+
+```{r fig.height=5, fig.width=16}
+
+figS9A + figS9B + plot_annotation(tag_levels = "A")
+
+ggsave("figures/figS9.pdf")
 
 ```
 
@@ -782,6 +801,10 @@ metadata %>%
   filter(n>1) %>%
   
   mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  
+  
+  filter(days == 0 | days > 60*60*24) %>%
+  
   group_by(HOST_SUBJECT_ID) %>%
   arrange(HOST_SUBJECT_ID, days) %>%
   mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
@@ -807,7 +830,7 @@ metadata %>%
          shannon_before = lag(shannon)) %>%
   filter(sample_order >1) %>%
   mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
-  mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
+  mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24*7,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
   ungroup() %>%
   #filter(days_delta_bins %in% c("(-1,8.64e+04]","(8.64e+04,1.04e+07]")) %>%
   group_by(Enterotypes_id_before,Enterotypes_id) %>%
@@ -864,9 +887,14 @@ ggraph(graph, weights=p, layout="stress") +
   #geom_node_point(aes(color=branches,size=stability*2)) +
   geom_node_label(aes(label=partition_names, fill=branches, size=stability)) + 
   scale_fill_brewer(type="qual") +
-  scale_alpha_continuous("participants proportion")
+  scale_alpha_continuous("participants proportion") + 
+  scale_edge_alpha("ind. proportion") + 
+  scale_size_continuous("time stability") +
+  theme_void() -> fig5A
   
-  
+fig5A
+
+
 
 ```
 
@@ -878,7 +906,6 @@ main switches occurred between #6 and #2, #3 and #5
 
 
 ```{r}
-
 #compute fprau/bacteroides ratio and merge
 
 f_GG = "k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__Faecalibacterium"
@@ -927,6 +954,11 @@ metadata %>%
   filter(n>1) %>%
   
   mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  
+  
+  filter(days == 0 | days > 60*60*24) %>%
+  
+  
   group_by(HOST_SUBJECT_ID) %>%
   arrange(HOST_SUBJECT_ID, days) %>%
   mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
@@ -961,9 +993,11 @@ metadata %>%
 df %>%
   mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
   ggplot() + geom_boxplot(aes(x=switch,y=delta_ratio)) + 
-  ylab("Faecalibacterium/Bacteroides ratio variation") + 
-  xlab("") + theme_classic() + 
-  scale_x_discrete(label=c("within","between","between","within"))
+  ylab("Faecalibacterium/Bacteroides\nratio variation") + 
+  xlab("") + cowplot::theme_cowplot() + 
+  scale_x_discrete(label=c("within\npartition M2","between\nfrom M2 to M6","between\nfrom M6 to M2","within\npartition M6")) -> fig5B
+
+fig5B
 
 df %>%
   mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
@@ -1017,9 +1051,53 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   ungroup() %>%
   #mutate(p.value=p.adjust(p.value, method="fdr"))%>%
   filter(p.value<0.05) %>% select(variable,p.value) %>% write.csv2(file="metadata_link_66vs62.csv")
+```
 
 
 
+
+```{r fig.height=10, fig.width=10}
+rbind(
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("2 2", "2 6")) %>%
+  mutate(switch= switch %>% factor(levels = c("2 2", "2 6"))) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  group_by(variable) %>%
+  tidyr::nest()  %>% 
+  mutate(cor_test=purrr::map(data,~cor.test(.x$value,.x$switch %>% as.factor %>% as.numeric(), method="spearman")),
+        tidy=purrr::map(cor_test, broom::tidy)) %>% 
+      tidyr::unnest(tidy,.drop=TRUE) %>%
+  arrange(p.value) %>%
+  mutate(switch=c("2->6")) %>%
+  select(variable,estimate,p.value,switch) %>% mutate(q.value=p.adjust(p.value,"fdr")),
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("6 6", "6 2")) %>% 
+  mutate(switch= switch %>% factor(levels = c("6 6", "6 2"))) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  group_by(variable) %>%
+  tidyr::nest()  %>% 
+  mutate(cor_test=purrr::map(data,~cor.test(.x$value,.x$switch %>% as.factor %>% as.numeric(), method="spearman")),
+        tidy=purrr::map(cor_test, broom::tidy)) %>% 
+      tidyr::unnest(tidy,.drop=TRUE) %>%
+  arrange(p.value) %>%
+  mutate(switch=c("6->2")) %>%
+  select(variable,estimate,p.value,switch) %>% mutate(q.value=p.adjust(p.value,"fdr"))) %>%
+  
+  filter(q.value<0.05) %>%
+  
+ggplot() + geom_bar(aes(x=variable,y=estimate,fill=switch), position = "dodge", stat = "identity") + coord_flip() + cowplot::theme_cowplot() -> fig5D
+  
+
+```
+
+
+
+
+```{r}
 library(caret)
 set.seed(666)
 train.control <- trainControl(method = "repeatedcv", 
@@ -1045,11 +1123,13 @@ selectedIndices <- model$pred$mtry == 2
 # Plot:
 plot.roc(model$pred$obs[selectedIndices],
          model$pred$p26[selectedIndices])
-
-
-
-
 ```
+
+
+
+
+
+
 
 ```{r}
 metadata %>%
@@ -1067,6 +1147,9 @@ metadata %>%
   filter(n>1) %>%
   
   mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  
+  filter(days == 0 | days > 60*60*24) %>%
+  
   group_by(HOST_SUBJECT_ID) %>%
   arrange(HOST_SUBJECT_ID, days) %>%
   mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
@@ -1101,9 +1184,13 @@ metadata %>%
 df %>%
   mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
   ggplot() + geom_boxplot(aes(x=switch,y=delta_ratio)) + 
-  ylab("Faecalibacterium/Bacteroides ratio variation") + 
-  xlab("") + theme_classic() + 
-  scale_x_discrete(label=c("within","between","between","within"))
+  ylab("Faecalibacterium/Bacteroides\nratio variation") + 
+  xlab("") + cowplot::theme_cowplot() + 
+  scale_x_discrete(label=c("within\npartition M3","between\nfrom M3 to M5","between\nfrom M5 to M3","within\npartition M5")) -> fig5C
+
+fig5C
+
+
 
 df %>%
   mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
@@ -1184,12 +1271,48 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   ungroup() %>%
 #mutate(p.value=p.adjust(p.value, method="fdr")) %>%
   filter(p.value<0.05) %>% select(variable,p.value) %>% write.csv2(file="metadata_link_33vs55.csv")
+```
 
 
 
+```{r fig.height=10, fig.width=10}
+rbind(
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("3 3", "3 5")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  group_by(variable) %>%
+  tidyr::nest()  %>% 
+  mutate(cor_test=purrr::map(data,~cor.test(.x$value,.x$switch %>% as.factor %>% as.numeric(), method="spearman")),
+        tidy=purrr::map(cor_test, broom::tidy)) %>% 
+      tidyr::unnest(tidy,.drop=TRUE) %>%
+  arrange(p.value) %>%
+  mutate(switch=c("3->5")) %>%
+  select(variable,estimate,p.value,switch),
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("5 5", "5 3")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+  group_by(variable) %>%
+  tidyr::nest()  %>% 
+  mutate(cor_test=purrr::map(data,~cor.test(.x$value,.x$switch %>% as.factor %>% as.numeric(), method="spearman")),
+        tidy=purrr::map(cor_test, broom::tidy)) %>% 
+      tidyr::unnest(tidy,.drop=TRUE) %>%
+  arrange(p.value) %>%
+  mutate(switch=c("5->3")) %>%
+  select(variable,estimate,p.value,switch)) %>%
+  filter(p.value<0.05) %>%
+  
+ggplot() + geom_bar(aes(x=variable,y=estimate,fill=switch), position = "dodge", stat = "identity") + coord_flip() + cowplot::theme_cowplot() -> fig5E
+  
+
+```
 
 
 
+```{r}
 library(caret)
 set.seed(666)
 train.control <- trainControl(method = "repeatedcv", 
@@ -1213,15 +1336,29 @@ roc_imp <- filterVarImp(x = df_55_53 %>% select(-switch), y = df_55_53$switch)
 
 library(pROC)
 # Select a parameter setting
-selectedIndices <- model$pred$mtry == 2
+selectedIndices <- model$pred$mtry == 100
 # Plot:
 plot.roc(model$pred$obs[selectedIndices],
          model$pred$p55[selectedIndices])
-
-
-
-  
-  
 ```
+
+
+
+
+## Figure 5
+
+
+```{r fig.height=8, fig.width=20}
+
+library(patchwork)
+
+
+(fig5A | (fig5B/fig5C)|(fig5D/fig5E)) + plot_layout(widths = c(2,1,1.5)) +plot_annotation(tag_levels = "A")
+
+
+```
+
+
+
 
 
