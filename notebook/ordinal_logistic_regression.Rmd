@@ -1481,13 +1481,16 @@ regm_tidy %>%
 
   regm_tidy %>%
     mutate(variable_group = "disease") %>%
-    mutate(variable_group = 
-             case_when(grepl("FREQUENCY", variable) ~ "Diet, demographic and lifestyle",
-                       grepl("ALCOHOL", variable) ~ "Diet, demographic and lifestyle",
-                       variable %in% c("AGE_YEARS","SEX","DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet, demographic and lifestyle",
-                       grepl("SPECIALIZED", variable) ~"Specialized Diet",
-                       grepl("REGION", variable) ~ "Region of Birth",
-                       TRUE ~ "Health associated"
+   mutate(variable_group = 
+             case_when(variable %in% c("AGE_YEARS","SEX","BMI","BOWEL_MOVEMENT_FREQUENCY") ~ "Intrinsic\nHost",
+                       grepl("MEALS", variable) ~ "Lifestyle\n& hygiene",
+                       variable %in% c("EXERCISE_FREQUENCY","POOL_FREQUENCY","COSMETICS_FREQUENCY","PREPARED_MEALS_FREQUENCY","TEETHBRUSHING_FREQUENCY","SMOKING_FREQUENCY") ~ "Lifestyle\n& hygiene",
+                       grepl("FREQUENCY", variable) ~ "Diet",
+                       grepl("ALCOHOL", variable) ~ "Diet",
+                       variable %in% c("DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet",
+                       grepl("SPECIALIZED", variable) ~"Specialized\nDiet",
+                       grepl("REGION", variable) ~ "Region of\nBirth",
+                       TRUE ~ "Diseases, Disorders\n& Antibiotics"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
   mutate(branch ="Clostridiales DMM types") %>%
@@ -1532,13 +1535,16 @@ regm_tidy %>%
   
 regm_tidy %>%
     mutate(variable_group = "disease") %>%
-    mutate(variable_group = 
-             case_when(grepl("FREQUENCY", variable) ~ "Diet, demographic and lifestyle",
-                       grepl("ALCOHOL", variable) ~ "Diet, demographic and lifestyle",
-                       variable %in% c("AGE_YEARS","SEX","DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet, demographic and lifestyle",
-                       grepl("SPECIALIZED", variable) ~"Specialized Diet",
-                       grepl("REGION", variable) ~ "Region of Birth",
-                       TRUE ~ "Health associated"
+   mutate(variable_group = 
+             case_when(variable %in% c("AGE_YEARS","SEX","BMI","BOWEL_MOVEMENT_FREQUENCY") ~ "Intrinsic\nHost",
+                       grepl("MEALS", variable) ~ "Lifestyle\n& hygiene",
+                       variable %in% c("EXERCISE_FREQUENCY","POOL_FREQUENCY","COSMETICS_FREQUENCY","PREPARED_MEALS_FREQUENCY","TEETHBRUSHING_FREQUENCY","SMOKING_FREQUENCY") ~ "Lifestyle\n& hygiene",
+                       grepl("FREQUENCY", variable) ~ "Diet",
+                       grepl("ALCOHOL", variable) ~ "Diet",
+                       variable %in% c("DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet",
+                       grepl("SPECIALIZED", variable) ~"Specialized\nDiet",
+                       grepl("REGION", variable) ~ "Region of\nBirth",
+                       TRUE ~ "Diseases, Disorders\n& Antibiotics"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
   mutate(branch ="Clostridiales DMM types") %>%
@@ -1574,12 +1580,15 @@ regm_tidy %>%
  regm_tidy %>%
     mutate(variable_group = "disease") %>%
     mutate(variable_group = 
-             case_when(grepl("FREQUENCY", variable) ~ "Diet, demographic and lifestyle",
-                       grepl("ALCOHOL", variable) ~ "Diet, demographic and lifestyle",
-                       variable %in% c("AGE_YEARS","SEX","DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet, demographic and lifestyle",
-                       grepl("SPECIALIZED", variable) ~"Specialized Diet",
-                       grepl("REGION", variable) ~ "Region of Birth",
-                       TRUE ~ "Health associated"
+             case_when(variable %in% c("AGE_YEARS","SEX","BMI","BOWEL_MOVEMENT_FREQUENCY") ~ "Intrinsic\nHost",
+                       grepl("MEALS", variable) ~ "Lifestyle\n& hygiene",
+                       variable %in% c("EXERCISE_FREQUENCY","POOL_FREQUENCY","COSMETICS_FREQUENCY","PREPARED_MEALS_FREQUENCY","TEETHBRUSHING_FREQUENCY","SMOKING_FREQUENCY") ~ "Lifestyle\n& hygiene",
+                       grepl("FREQUENCY", variable) ~ "Diet",
+                       grepl("ALCOHOL", variable) ~ "Diet",
+                       variable %in% c("DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet",
+                       grepl("SPECIALIZED", variable) ~"Specialized\nDiet",
+                       grepl("REGION", variable) ~ "Region of\nBirth",
+                       TRUE ~ "Diseases, Disorders\n& Antibiotics"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
   mutate(branch ="Clostridiales DMM types") %>%
