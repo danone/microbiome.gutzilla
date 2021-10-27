@@ -67,6 +67,14 @@ metadata %>%
 
 load(system.file("data-raw/curatedMetaG/curated_v3_otu_tax.rda", package = "gutzilla"))
 
+OTU %>%
+  merge(TAX %>% as.data.frame() %>% select(Genus), by="row.names") %>%
+  select(-Row.names) %>%
+  group_by(Genus) %>%
+  summarise_all(sum) -> curated_v3_genus
+
+#genus = curated_v3_genus
+
 # tidy metadata and add UNSD countries
 data("country_codes")
 
@@ -76,6 +84,7 @@ metadata = sampleMetadata
 #colnames(metadata) = stringr::str_to_lower(colnames(metadata))
 
 metadata <- metadata %>%
+  filter(body_site == "stool") %>%
   merge(country_codes %>%
           mutate(`Sub.region.Name` = `Sub.region.Name` %>% as.character()) %>%
           #select(`Country or Area`, `Sub-region Name`, `Region Name`) %>%
@@ -101,13 +110,7 @@ metadata <- metadata %>%
 
            ))
 
-OTU %>%
-  merge(TAX %>% as.data.frame() %>% select(Genus), by="row.names") %>%
-  select(-Row.names) %>%
-  group_by(Genus) %>%
-  summarise_all(sum) -> curated_v3_genus
 
-genus = curated_v3_genus
 
 ## start sampling
 
@@ -116,7 +119,7 @@ n=30 # n samples per group
 metadata %>%
   filter(study_name != "LeChatelierE_2013") %>% #samples found in NielsenHB_2014
   #filter(!(sample_name %in% outliers)) %>%
-  filter(sample_id %in% colnames(genus)) %>%
+  filter(sample_id %in% colnames(curated_v3_genus)) %>%
   select(sample_id,age_category2,gender, `Sub.region.Name`) %>%
   filter(gender %in% c("male","female")) %>%
   filter(!is.na(age_category2)) %>%
@@ -153,6 +156,11 @@ data("UNSD_countries")
 metadata = readr::read_csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "gutzilla"))
 #to do: check issue parsing IBD variables
 
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "gutzilla")
+genus_agp = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+
+
 colnames(metadata) = stringr::str_to_lower(colnames(metadata))
 
 metadata <- metadata %>%
@@ -174,7 +182,7 @@ n=30 # n samples per group
 
 metadata %>%
   filter(!(sample_name %in% outliers)) %>%
-  #filter(sample_name %in% colnames(genus)) %>%
+  filter(sample_name %in% colnames(genus_agp)) %>%
   select(sample_name,age_cat,sex, `Sub-region Name`,country_of_birth) %>%
   filter(sex %in% c("male","female")) %>%
   
@@ -184,6 +192,8 @@ metadata %>%
   pull(sample_name) -> samples_id_select
 
 metadata %>% 
+  #filter(!(sample_name %in% outliers)) %>%
+  filter(sample_name %in% colnames(genus_agp)) %>%
   select(sample_name,age_cat,sex, `Sub-region Name`) %>%
   mutate(dataset="AGP", sampled= sample_name %in% samples_id_select) -> metadata_agp
 
@@ -194,6 +204,25 @@ metadata %>%
 
 
 ```{r fig.height=9, fig.width=16}
+
+rbind(metadata_curated %>% 
+  dplyr::rename(sex=gender,age=age_category2, region=`Sub.region.Name`, dataset=dataset,sampled=sampled) %>%
+  select(sex,age,region,dataset,sampled),
+
+metadata_agp %>%
+  dplyr::rename(sex=sex,age=age_cat, region=`Sub-region Name`, dataset=dataset,sampled=sampled) %>%
+  select(sex,age,region,dataset,sampled)) %>%
+  mutate(age =
+           case_when(
+             age == "baby" ~ "00s",
+             age =="infant" ~ "00s",
+             age == "child" ~ "03s",
+              age == "teen" ~ "10s",
+             TRUE ~ as.character(age))) %>%  pull(dataset) %>% table()
+  
+
+
+
 
 rbind(metadata_curated %>% 
   dplyr::rename(sex=gender,age=age_category2, region=`Sub.region.Name`, dataset=dataset,sampled=sampled) %>%
