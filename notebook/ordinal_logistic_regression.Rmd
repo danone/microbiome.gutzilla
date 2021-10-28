@@ -733,7 +733,7 @@ will be used as reference
 #### import metadata and merge with UNSD regions
 ```{r}
 enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1] %>% filter(!is.na(Enterotypes_id))
-metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "gutzilla"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
 
 metadata %>% .[1:5,1:5]
 
@@ -883,6 +883,70 @@ metadata_enterotypes$Enterotypes_id = forcats::fct_relevel(metadata_enterotypes$
 
 
 ```
+
+```{r}
+
+
+metadata_enterotypes %>% 
+  filter(Enterotypes_id =="m1") %>%
+  select(BMI_CAT,ANTIBIOTIC_HISTORY,VEGETABLE_FREQUENCY,REGION_BIRTH,SEX, AGE_YEARS) %>%
+  mutate(AGE_60 = AGE_YEARS > 60) %>%
+  select(-AGE_YEARS) %>%
+  ungroup() %>%
+  as.matrix() %>%
+  reshape2::melt() %>%
+  group_by(Var2,value) %>%
+  filter(value!="Missing") %>%
+  summarise(n=n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  filter(value %in% c("TRUE","Normal","I have not taken antibiotics in the past year.","Daily","Northern America","female")) %>%
+  mutate(type="ref") -> small_summary_ref_set
+  
+
+metadata_enterotypes %>% 
+  #filter(Enterotypes_id =="m1") %>%
+  select(BMI_CAT,ANTIBIOTIC_HISTORY,VEGETABLE_FREQUENCY,REGION_BIRTH,SEX, AGE_YEARS) %>%
+  mutate(AGE_60 = AGE_YEARS > 60) %>%
+  select(-AGE_YEARS) %>%
+  ungroup() %>%
+  as.matrix() %>%
+  reshape2::melt() %>%
+  group_by(Var2,value) %>%
+  filter(value!="Missing") %>%
+  summarise(n=n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  filter(value %in% c("TRUE","Normal","I have not taken antibiotics in the past year.","Daily","Northern America","female")) %>%
+  mutate(type="all") 
+  
+  
+  
+  metadata_enterotypes %>% 
+  #filter(Enterotypes_id =="m1") %>%
+  select(BMI_CAT,ANTIBIOTIC_HISTORY,VEGETABLE_FREQUENCY,REGION_BIRTH,SEX, AGE_YEARS) %>%
+  mutate(AGE_60 = AGE_YEARS > 60) %>%
+  select(-AGE_YEARS) %>%
+  ungroup() %>%
+  as.matrix() %>%
+  reshape2::melt() %>%
+  group_by(Var2,value) %>%
+  filter(value!="Missing") %>%
+  summarise(n=n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  filter(value %in% c("TRUE","Normal","I have not taken antibiotics in the past year.","Daily","Northern America","female")) %>%
+    ggplot() + geom_bar(aes(y=freq,x=Var2, fill="all dataset"), stat="identity") + coord_flip() + scale_y_continuous("Prevalence",labels=scales::percent) +
+    scale_x_discrete("",labels=c("Normal BMI\n(18.5 - 24.9)","No antibiotic\nin the past year","Daily vegetable","Northern America","Female","Age > 60y" )) + 
+    geom_point(data=small_summary_ref_set, aes(y=freq,x=Var2, color="ref M1"), size=5) +
+    geom_segment(data=small_summary_ref_set, aes(x=Var2, xend=Var2, y=0, yend=freq)) +
+    cowplot::theme_cowplot() + 
+    scale_color_manual("", values = "black", labels="M1 (ref)") +
+    scale_fill_discrete("") -> fig4D
+
+fig4D
+
+```
+
+
+
 #### clean metadata enterotypes numerical
 
 ```{r}
@@ -1491,7 +1555,7 @@ regm_tidy %>%
                        variable %in% c("DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet",
                        grepl("SPECIALIZED", variable) ~"Specialized\nDiet",
                        grepl("REGION", variable) ~ "Region of\nBirth",
-                       TRUE ~ "Diseases, Disorders\n& Antibiotics"
+                       TRUE ~ "Medical history"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
   mutate(branch ="Clostridiales DMM types") %>%
@@ -1504,7 +1568,7 @@ regm_tidy %>%
   mutate(s=mean(abs(estimate2))) %>% 
   filter(s>0) %>%
   ungroup() %>%
-  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
+  mutate(y.level = y.level %>% stringr::str_to_upper() %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
   
   mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>% #pull(variable) %>% grep("COLL",.)
   filter(!(variable %in% grep("COLL", variable, value = TRUE) )) %>%
@@ -1546,7 +1610,7 @@ regm_tidy %>%
                        variable %in% c("DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet",
                        grepl("SPECIALIZED", variable) ~"Specialized\nDiet",
                        grepl("REGION", variable) ~ "Region of\nBirth",
-                       TRUE ~ "Diseases, Disorders\n& Antibiotics"
+                       TRUE ~ "Medical history"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
   mutate(branch ="Clostridiales DMM types") %>%
@@ -1559,7 +1623,7 @@ regm_tidy %>%
   mutate(s=mean(abs(estimate2))) %>% 
   filter(s>0) %>%
   ungroup() %>%
-  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
+  mutate(y.level = y.level %>% stringr::str_to_upper() %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
   mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = TRUE)) %>%  
   mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>%
   group_by(variable,variable_group,branch) %>%
@@ -1590,7 +1654,7 @@ regm_tidy %>%
                        variable %in% c("DIET_TYPE","TYPES_OF_PLANTS") ~ "Diet",
                        grepl("SPECIALIZED", variable) ~"Specialized\nDiet",
                        grepl("REGION", variable) ~ "Region of\nBirth",
-                       TRUE ~ "Diseases, Disorders\n& Antibiotics"
+                       TRUE ~ "Medical history"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
   mutate(branch ="Clostridiales DMM types") %>%
@@ -1604,21 +1668,21 @@ regm_tidy %>%
   mutate(s=mean(abs(estimate2))) %>% 
   filter(s>0) %>%
   ungroup() %>%
-  mutate(y.level = y.level %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
+  mutate(y.level = y.level %>% stringr::str_to_upper() %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
   mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = FALSE)) %>%  
    mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>%
   group_by(y.level, variable_group, branch) %>%
   summarise(estimate=sum(abs(estimate2))) %>%
   
   ggplot() +
-  geom_bar(aes(y=y.level,x=estimate,fill=variable_group), stat="identity", position = "stack") +
+  geom_bar(aes(y= y.level ,x=estimate,fill=variable_group), stat="identity", position = "stack") +
   facet_grid(branch~., scale="free", space = "free") + scale_fill_brewer("",type="qual", palette = "Set2") +
   ylab("") + xlab("absoluted cummulated model weights") + 
    cowplot::theme_cowplot() -> fig4C
 
 
- (fig4B + plot_spacer() + plot_layout(widths = c(3,1.22))) /
-   (fig4A + fig4C + plot_layout(widths = c(3,1))) + plot_layout(heights = c(1,3)) 
+ ((fig4B + fig4D + plot_layout(widths = c(3.45,1))) /
+   (fig4A + fig4C + plot_layout(widths = c(3,1))) + plot_layout(heights = c(1,3)) )+ plot_annotation(tag_levels = "A")
  
  ggsave("figures/figure4.pdf")
  
