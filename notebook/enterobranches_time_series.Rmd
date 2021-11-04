@@ -301,6 +301,9 @@ metadata %>%
 
 figS9A
 
+
+ggsave("FigS9A_branche_before_after.pdf")
+
 ```
 ## compute prevotella bacteroides ratio within days
 ```{r}
@@ -722,7 +725,7 @@ Bacteroides_enterotypes_shannon_pairs %>%
   filter(!(Enterotypes_id==Enterotypes_id_before)) %>%
   group_by(Enterotypes_id_before) %>%
   arrange(Enterotypes_id_before, desc(n_p)) %>%
-  slice(1:2) %>%
+  dplyr::slice(1:2) %>%
   ggplot() + 
   geom_segment(aes(y=shannon_before, 
         yend=shannon, 
@@ -755,7 +758,7 @@ Prevotella_enterotypes_shannon_pairs %>%
   filter(!(Enterotypes_id==Enterotypes_id_before)) %>%
   group_by(Enterotypes_id_before) %>%
   arrange(Enterotypes_id_before, desc(n_p)) %>%
-  slice(1:2) %>%
+  dplyr::slice(1:2) %>%
   ggplot() + 
   geom_segment(aes(y=shannon_before, 
         yend=shannon, 
@@ -839,7 +842,7 @@ metadata %>%
   arrange(Enterotypes_id_before,desc(n)) %>%
   group_by(Enterotypes_id_before) %>%
   mutate(p=n/sum(n)) %>%
-  slice(1:3) -> enterotypes_time_series_network
+  dplyr::slice(1:3) -> enterotypes_time_series_network
    
 enterotypes_time_series_network %>%
   group_by(Enterotypes_id_before) %>%
@@ -1007,20 +1010,51 @@ df %>%
 rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
       df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
         mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
-  arrange(switch) %>%
-  ggplot() + geom_line(aes(x=ratio,y=SAMPLE_NAME, group=SAMPLE_NAME, col=switch))  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2") + facet_wrap(~switch, ncol=1, scale="free_y")
+  mutate(stable = ifelse(switch %in% c("2 2","6 6"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("2 2","2 6"), "M2","M6")  ) %>%
+  #arrange(switch) %>%
+  ggplot() + geom_line(aes(x=ratio,y=SAMPLE_NAME, group=SAMPLE_NAME, col=stable))  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2") + 
+  #facet_wrap(~switch, ncol=1, scale="free_y") +
+  cowplot::theme_cowplot() +
+  ylab("AGP participants") + xlab("Faecalibacterium/\nBacteroides ratio") +
+  scale_color_manual("", values=c("black","red"), label=c("stable","unstable")) +
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) + 
+  facet_grid(start_partition~., scales = "free_y")
+
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(shannon)) %>%
+  mutate(stable = ifelse(switch %in% c("2 2","6 6"), "stable","unstable")  ) %>%
+  #filter(stable == "stable") %>%
+  ggplot() + 
+  geom_point(aes(x=ratio,y=shannon,col=switch))+ 
+  geom_line(aes(x=ratio,y=shannon,group=SAMPLE_NAME ,col=switch)) +
+  scale_x_continuous(trans = "log2") + facet_wrap(~stable)
+
+
+
 
 df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
   mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(Enterotypes_id%>%as.numeric)) %>%
   ggplot() + geom_density(aes(x=ratio, fill=switch), alpha=0.5)  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2")
 
-
 df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
-  filter(switch %in% c("2 2", "2 6")) %>%
-  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
-  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
-  ggplot() + geom_boxplot(aes(x=switch, y=value)) + facet_wrap(~variable, scale="free")
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(Enterotypes_id%>%as.numeric)) %>%
+  ggplot() + 
+  #geom_density(aes(x=ratio), alpha=0.5)  + 
+  geom_density(aes(x=ratio, color=switch), alpha=0.5)  +
+  cowplot::theme_cowplot() +
+  theme(axis.text.y = element_blank()) + 
+  scale_x_continuous(trans = "log2")
+
+# df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+#   filter(switch %in% c("2 2", "2 6")) %>%
+#   merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+#   reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch")) %>%
+#   ggplot() + geom_boxplot(aes(x=switch, y=value)) + facet_wrap(~variable, scale="free")
 
 
 df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
@@ -1051,8 +1085,119 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   ungroup() %>%
   #mutate(p.value=p.adjust(p.value, method="fdr"))%>%
   filter(p.value<0.05) %>% select(variable,p.value) %>% write.csv2(file="metadata_link_66vs62.csv")
+
+
+df %>%
+  mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
+  ggplot() + geom_point(aes(x=log2(ratio_before) - log2(ratio),y=log2(shannon_before/shannon), color=switch)) +
+  xlim(-4,4) + ylim(-0.5, 0.5) + cowplot::theme_cowplot() + 
+  xlab("Feacalibacterium/Bacteroides variation") + ylab("alpha-diversity variation")
+
+
+
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  mutate(stable = ifelse(switch %in% c("2 2","6 6"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("2 2","2 6"), "M2","M6")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  #arrange(switch) %>%
+  ggplot() + geom_line(aes(x=ratio,y=SAMPLE_NAME, group=SAMPLE_NAME, col=stable))  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2") + 
+  #facet_wrap(~switch, ncol=1, scale="free_y") +
+  cowplot::theme_cowplot() +
+  ylab("AGP participants") + xlab("Faecalibacterium/\nBacteroides ratio") +
+  scale_color_manual("", values=c("black","red"), label=c("stable","unstable")) +
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) + 
+  facet_grid(start_partition~., scales = "free_y") -> fig5B_full
+
+
+df %>%
+  mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
+  mutate(stable = ifelse(switch %in% c("2 2","6 6"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("2 2","2 6"), "M2","M6")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  ggplot() + geom_boxplot(aes(x=start_partition,y=delta_ratio, col=stable)) + 
+  ylab("Faecalibacterium/Bacteroides\nratio variation") + 
+  #scale_y_continuous(trans="log2") +
+  xlab("") + cowplot::theme_cowplot() + scale_color_manual("",values=c("black","red")) -> fig5Binset
+
+
+fig5B = fig5B_full + inset_element(fig5Binset+ylab("variation")+guides(color=FALSE), 0.65,-0.1,1,0.3, ignore_tag = TRUE)
+
+fig5B
+
 ```
 
+
+
+### pca analysis
+```{r}
+
+library(ade4)
+
+cbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  #filter(switch %in% c("2 2", "2 6", "6 6", "6 2")) %>%
+  filter(switch %in% c("2 2", "6 6")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  select(1:4),
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  #filter(switch %in% c("2 2", "2 6", "6 6", "6 2")) %>%
+  filter(switch %in% c("2 2", "6 6")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  select(-1,-2,-3,-4) %>%
+  ade4::dudi.pca(scannf = FALSE, nf=2) %>%
+  .$li) %>%
+  ggplot() + geom_point(aes(x=Axis1, y=Axis2, col=switch))
+
+
+
+
+
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("2 2", "2 6", "6 6", "6 2")) %>%
+  filter(switch %in% c("2 2", "6 6")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  select(-1,-2,-3,-4) -> df_pca_prep
+  
+ade4::dudi.pca(df_pca_prep, scannf = FALSE, nf=2) -> pca_2_6
+
+
+df %>% 
+  select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>% 
+  filter(switch %in% c("2 2", "2 6", "6 6", "6 2")) %>%
+  filter(switch %in% c("2 2", "6 6")) %>%
+  pull(switch) %>% as.factor() -> df_fac
+  ade4::bca(pca_2_6, fac=df_fac, scannf=F) %>% randtest()
+
+
+
+
+cbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("2 2", "2 6", "6 6", "6 2")) %>%
+  #filter(switch %in% c("2 2", "6 6")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  select(1:4),
+
+
+df %>% 
+  select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>% 
+  filter(switch %in% c("2 2", "2 6", "6 6", "6 2")) %>%
+  pull(switch) %>% as.factor() %>%
+  ade4::bca(pca_2_6, fac=., scannf=F) %>%
+  .$ls) %>%
+  ggplot() + geom_point(aes(x=CS1,y=CS2,color=switch))
+
+
+
+
+
+
+```
 
 
 
@@ -1091,6 +1236,15 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   
 ggplot() + geom_bar(aes(x=variable,y=estimate,fill=switch), position = "dodge", stat = "identity") + coord_flip() + cowplot::theme_cowplot() -> fig5D
   
+
+
+df %>%
+  mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
+  select(SAMPLE_NAME,Enterotypes_id, shannon, switch) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id=c("SAMPLE_NAME","Enterotypes_id","switch","shannon","shannon_before","ratio","ratio_before")) 
+
+
 
 ```
 
@@ -1208,6 +1362,9 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(Enterotypes_id%>%as.numeric)) %>%
   ggplot() + geom_density(aes(x=ratio, fill=switch), alpha=0.5)  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2")
 
+
+
+
 df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   filter(switch %in% c("5 5", "5 3")) %>%
   merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
@@ -1271,7 +1428,151 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   ungroup() %>%
 #mutate(p.value=p.adjust(p.value, method="fdr")) %>%
   filter(p.value<0.05) %>% select(variable,p.value) %>% write.csv2(file="metadata_link_33vs55.csv")
+
+
+
+
+df %>%
+  mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
+  ggplot() + geom_point(aes(x=log2(ratio_before) - log2(ratio),y=log2(shannon_before/shannon), color=switch)) +
+  xlim(-4,4) + ylim(-0.5, 0.5) + cowplot::theme_cowplot() + 
+  xlab("Feacalibacterium/Bacteroides variation") + ylab("alpha-diversity variation")
+
+
+
+
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  mutate(stable = ifelse(switch %in% c("5 5","3 3"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("5 5","5 3"), "M5","M3")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  #arrange(switch) %>%
+  ggplot() + geom_line(aes(x=ratio,y=SAMPLE_NAME, group=SAMPLE_NAME, col=stable))  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2") + 
+  #facet_wrap(~switch, ncol=1, scale="free_y") +
+  cowplot::theme_cowplot() +
+  ylab("AGP participants") + xlab("Faecalibacterium/\nBacteroides ratio") +
+  scale_color_manual("", values=c("black","red"), label=c("stable","unstable")) +
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) + 
+  facet_grid(start_partition~., scales = "free_y") -> fig5C_full
+
+
+df %>%
+  mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
+  mutate(stable = ifelse(switch %in% c("5 5","3 3"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("5 5","5 3"), "M5","M3")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  ggplot() + geom_boxplot(aes(x=start_partition,y=delta_ratio, col=stable)) + 
+  ylab("Faecalibacterium/Bacteroides\nratio variation") + 
+  #scale_y_continuous(trans="log2") +
+  xlab("") + cowplot::theme_cowplot() + scale_color_manual("",values=c("black","red")) -> fig5Cinset
+
+
+fig5C = fig5C_full + inset_element(fig5Cinset+ylab("variation")+guides(color=FALSE), 0.6,-0.1,1,0.3, ignore_tag = TRUE) + plot_annotation(tag_levels = "A")
+
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(Enterotypes_id%>%as.numeric)) %>%
+  mutate(stable = ifelse(switch %in% c("5 5","3 3"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("5 5","5 3"), "M5","M3")  ) %>%
+  #filter(stable!="stable") %>%
+  ggplot() + geom_histogram(aes(x=ratio), alpha=0.5)  + theme(axis.text.y = element_blank()) + scale_x_continuous(trans = "log2")
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(Enterotypes_id%>%as.numeric)) %>%
+  mutate(stable = ifelse(switch %in% c("5 5","3 3"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("5 5","5 3"), "M5","M3")  ) %>% 
+  #filter(stable!="stable") %>%
+  pull(ratio) %>%
+  log(.,2) %>% diptest::dip.test()
+
+
 ```
+
+
+### pca
+```{r}
+
+
+library(ade4)
+
+cbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  #filter(switch %in% c("3 3", "3 5", "5 5", "5 3")) %>%
+  filter(switch %in% c("3 3", "5 5")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  select(1:4),
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  #filter(switch %in% c("3 3", "3 5", "5 5", "5 3")) %>%
+  filter(switch %in% c("3 3", "5 5")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  select(-1,-2,-3,-4) %>%
+  ade4::dudi.pca(scannf = FALSE, nf=2) %>%
+  .$li) %>%
+  ggplot() + geom_point(aes(x=Axis1, y=Axis2, col=switch))
+
+
+
+
+
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("3 3", "3 5", "5 5", "5 3")) %>%
+  #filter(switch %in% c("3 3", "5 5")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  select(-1,-2,-3,-4) -> df_pca_prep
+  
+ade4::dudi.pca(df_pca_prep, scannf = FALSE, nf=2) -> pca_3_5
+
+
+df %>% 
+  select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>% 
+  filter(switch %in% c("3 3", "3 5", "5 5", "5 3")) %>%
+  #filter(switch %in% c("3 3", "5 5")) %>%
+  pull(switch) %>% as.factor() -> df_fac
+  ade4::bca(pca_3_5, fac=df_fac, scannf=F) %>% randtest()
+
+
+df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("3 3", "3 5", "5 5", "5 3")) %>%
+  #filter(switch %in% c("3 3", "5 5")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  select(-1,-2,-3,-4) -> df_pca_prep
+  
+ade4::dudi.pca(df_pca_prep, scannf = FALSE, nf=2) -> pca_3_5
+
+
+
+
+cbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
+  filter(switch %in% c("3 3", "3 5", "5 5", "5 3")) %>%
+  #filter(switch %in% c("3 3", "5 5")) %>%
+  merge(metadata_enterotypes_num %>% select(-Enterotypes_id) %>% mutate_all(as.numeric), by.x="SAMPLE_NAME", by.y="row.names") %>%
+  select(1:4),
+
+
+df %>% 
+  select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>% 
+  filter(switch %in% c("3 3", "3 5", "5 5", "5 3")) %>%
+  #filter(switch %in% c("3 3", "5 5")) %>%
+  pull(switch) %>% as.factor() %>%
+  ade4::bca(pca_3_5, fac=., scannf=F) %>%
+  .$ls) %>%
+  ggplot() + geom_boxplot(aes(y=CS1, x=switch)) 
+
+
+
+
+
+```
+
+
 
 
 
@@ -1345,16 +1646,35 @@ plot.roc(model$pred$obs[selectedIndices],
 
 
 
-## Figure 5
+## Figure 5 - Time series
 
 
-```{r fig.height=8, fig.width=20}
+```{r fig.height=8, fig.width=15}
 
 library(patchwork)
 
 
-(fig5A | (fig5B/fig5C)|(fig5D/fig5E)) + plot_layout(widths = c(2,1,1.5)) +plot_annotation(tag_levels = "A")
+#(fig5A | (fig5B/fig5C)|(fig5D/fig5E)) + plot_layout(widths = c(2,1,1.5)) +plot_annotation(tag_levels = "A")
 
+# patch_plot = ((fig5A + plot_annotation(tag_levels = "A")) | 
+#     
+#     ((fig5B_full + plot_annotation(tag_levels = "B") +
+#        inset_element(fig5Binset + 
+#                        ylab("variation")+
+#                        guides(color=FALSE), 0.6,-0.1,1,0.3, ignore_tag = FALSE))/
+#        
+#        (fig5C_full + plot_annotation(tag_levels = "C") +
+#        inset_element(fig5Cinset+
+#                        ylab("variation")+
+#                        guides(color=FALSE), 0.6,-0.1,1,0.3, ignore_tag = FALSE)))) +
+#   plot_annotation(tag_levels = "A")  + plot_layout(widths = c(2,1.5))
+# 
+# patch_plot[[2]][[1]] + plot_annotation(tag_levels = "A")
+
+
+((fig5A) | (fig5B_full/fig5C_full)) + plot_annotation(tag_levels = "A") + plot_layout(widths = c(2,1.5))
+
+ggsave("figures/figure5.pdf")
 
 ```
 
