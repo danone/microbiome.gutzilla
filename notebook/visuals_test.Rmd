@@ -15,9 +15,9 @@ devtools::load_all()
 load metadata
 ```{r}
 
-metadata = readr::read_tsv(system.file("data-raw/qiime/generated-files-20190512/ag.txt", package = "agp"))
+metadata = readr::read_tsv(system.file("data-raw/qiime/generated-files-20190512/ag.txt", package = "gutzilla"))
 
-country_info = readr::read_tsv(system.file(package="agp", "data-raw/countryInfo.txt"), comment = "#", col_names = FALSE, na = "") %>%
+country_info = readr::read_tsv(system.file(package="gutzilla", "data-raw/countryInfo.txt"), comment = "#", col_names = FALSE, na = "") %>%
   select(X5,X9) %>%
   dplyr::rename(country="X5", continent="X9" )
 
@@ -27,7 +27,7 @@ country_info = readr::read_tsv(system.file(package="agp", "data-raw/countryInfo.
 load genus abundance
 ```{r}
 
-genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "agp")
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "gutzilla")
 
 genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
 
@@ -320,7 +320,7 @@ url="data-raw/qiime/generated-files-20190512/beta/pcoa/d3609a45-53a8-40e1-b731-8
 #url="data-raw/qiime/generated-files-20190512/beta/pcoa/d3048346-f38b-4797-9fb3-bd4166d5028d/data/ordination.txt" #weighted
 
 pcoa=
-readLines(system.file(url, package="agp"))[-c(1:10)] %>% 
+readLines(system.file(url, package="gutzilla"))[-c(1:10)] %>% 
   as.matrix %>% as.data.frame %>% tidyr::separate("V1", into=as.character(1:11), sep="\t") %>%
   select(1:3) %>%
   dplyr::rename(sampleID="1",pcoa1="2",pcoa2="3")
@@ -521,7 +521,7 @@ test %>%
   merge(sample_read_mass, by="#SampleID") %>%
   group_by(Genus) %>%
   summarise(cor_mass=cor(value,mass, method="pearson")) %>%
-  arrange((cor_mass))
+  arrange((cor_mass)) %>% filter(cor_mass < -0.25)
 
 
 ```
