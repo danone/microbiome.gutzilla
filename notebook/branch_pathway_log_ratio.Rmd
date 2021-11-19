@@ -1,0 +1,36 @@
+---
+title: "branch pathway log ratio"
+output: html_notebook
+---
+
+```{r}
+library(ggplot2)
+devtools::load_all()
+
+```
+
+
+```{r}
+
+
+
+pathway_df = system.file(package="gutzilla", "data-raw/enterobranches/top_10_pathways_in_M16-19-8_logratios_and_annotations.xlsx") %>%
+  readxl::read_xlsx(skip = 2)
+
+
+```
+
+
+
+```{r }
+
+pathway_df %>%
+  ggplot() + 
+  geom_point(aes(x=`Super pathway`, y=`Log-ratios mean`, col=`Partition samples (for log-ratios)`)) +
+  facet_grid(.~Model, scales="free_x") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+```
+
