@@ -5,6 +5,7 @@ output: html_notebook
 
 ```{r}
 library(ggplot2)
+library(patchwork)
 devtools::load_all()
 
 ```
@@ -24,13 +25,52 @@ pathway_df = system.file(package="gutzilla", "data-raw/enterobranches/top_10_pat
 
 ```{r }
 
-pathway_df %>%
+p_a=pathway_df %>%
   ggplot() + 
   geom_point(aes(x=`Super pathway`, y=`Log-ratios mean`, col=`Partition samples (for log-ratios)`)) +
-  facet_grid(.~Model, scales="free_x") +
+  #facet_grid(.~`Biosynthesis or Degradation`, scales="free_x") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 
+p_b =pathway_df %>%
+  ggplot() + 
+  geom_tile(aes(x=`Super pathway`, y=Model, fill=Model)) +
+  theme_void() +
+  guides(fill=FALSE)
+
+p_b/p_a + plot_layout(heights = c(1,4))
+
+
+
 ```
+
+
+```{r fig.height=6, fig.width=10}
+
+pathway_df %>%
+  select(`Super pathway`,`Pathway ID`,`Pathway name`,`Log-ratios mean`,`Partition samples (for log-ratios)`, Model) %>%
+  mutate(`Partition samples (for log-ratios)` = ifelse(`Partition samples (for log-ratios)`=="M8","ref","target")) %>%
+  reshape2::dcast(`Pathway name`+`Super pathway`+`Pathway ID` + Model ~  `Partition samples (for log-ratios)`, value.var = "Log-ratios mean") %>%
+  mutate(Model = case_when(Model=="M16"~ "Prevotella\nbranch tip", Model=="M21"~ "Bacteroides\nbranch tip")) %>%
+  mutate(detected = ifelse(is.na(target),"undetected","detected")) %>%
+  mutate(target = ifelse(is.na(target),-9,target)) %>%
+  mutate(delta=target-ref) %>%
+  mutate(annot_label = ifelse(delta<0,"reference\nframe",Model)) %>%
+  mutate(annot_label=paste("enriched in\n",annot_label)) %>%
+  mutate(pathway = paste(`Super pathway`,"(",`Pathway ID`,")")) %>%
+  mutate(pathway = pathway %>% as.factor() %>% forcats::fct_reorder(delta)) %>%
+  mutate(`Pathway name` = `Pathway name` %>% forcats::fct_reorder(delta) ) %>%
+  ggplot() +
+  geom_point(aes(x=pathway, y=delta, col=Model)) +
+  geom_hline(yintercept = 0) +
+  coord_flip() +
+  facet_grid(annot_label~., scales="free_y", space = "free_y") +
+  xlab("") +
+  ylab("log-ratio variation\nto the ref. frame") +
+  theme_bw()
+
+
+```
+
 
