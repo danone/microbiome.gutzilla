@@ -396,8 +396,16 @@ ggsave("dmm_types_clustering_curated_agp.pdf")
 
 ```
 
+### permanova en AGP/curated dmm partitions
+
+```{r}
+anova(vegan::betadisper(microbiota_types_jsd, microbiota_annotation$dataset ))
 
 
+vegan::adonis(microbiota_types_jsd~microbiota_annotation$dataset)
+
+
+```
 
 
 
