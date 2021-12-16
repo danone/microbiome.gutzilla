@@ -724,6 +724,8 @@ OTU %>%
 
 
 
+
+
 ```
 
 
@@ -818,6 +820,99 @@ cowplot::plot_grid(p_bif_genus, p_bif_specis_prop, align = "v", ncol = 2, rel_wi
 
 
 ```
+## PCoA Bifidobacterium species
+TO DO : to include all bifidobacterium species
+
+
+```{r}
+
+
+OTU %>%
+  unclass() %>%
+  as.matrix() %>%
+  merge(TAX %>% as.data.frame() %>% select(Genus,Species), by="row.names") %>%
+  filter(Genus=="Bifidobacterium") %>% 
+  select(-Row.names,-Genus) %>%
+  mutate(Species = Species %>% as.character()) %>%
+  # mutate(Species = ifelse(Species %in% c("Bifidobacterium adolescentis",
+  #                                                    "Bifidobacterium breve",
+  #                                                    "Bifidobacterium bifidum",
+  #                                                    "Bifidobacterium longum"), Species, "others Bifidobacterium")) %>%
+  group_by(Species) %>%
+  summarise_all(sum) -> curated_v3_Bif_species_all
+
+
+```
+
+
+```{r}
+
+curated_v3_Bif_species_all %>%
+  mutate_if(is.numeric, function(x) x/sum(x)) %>%
+  tibble::column_to_rownames("Species") %>%
+  t() %>%
+  as.data.frame() -> curated_v3_Bif_species_prop_all
+
+
+```
+
+
+
+
+```{r}
+
+curated_v3_Bif_species_prop_all %>%
+  tibble::rownames_to_column("sample_id") %>%
+  merge(sampleMetadata %>% select(age, sample_id), by="sample_id") %>%
+  reshape2::melt(id.vars=c("sample_id","age")) %>%
+  mutate(value=ifelse(is.na(value),0,value)) %>%
+  mutate(detection = ifelse(value>0,1,0)) %>%
+  arrange(age) %>%
+  filter(age>18) %>%
+  reshape2::dcast(sample_id~variable, value.var="value") -> curated_v3_Bif_species_prop_df
+
+
+curated_v3_Bif_species_prop_df %>%
+  tibble::column_to_rownames("sample_id") %>%
+  Rfast::Dist(method="jensen_shannon") %>% sqrt()  -> curated_v3_Bif_species_jsd
+
+
+curated_v3_Bif_species_pco = ade4::dudi.pco(as.dist(curated_v3_Bif_species_jsd), scannf=F, nf=2)
+
+save(curated_v3_Bif_species_pco, file="curated_v3_Bif_species_pco.rda")
+
+```
+
+
+```{r}
+cbind(curated_v3_Bif_species_pco$li, curated_v3_Bif_species_prop_df) %>% 
+  ggplot() + geom_point(aes(x=A1, y=A2, col=`Bifidobacterium adolescentis`)) + guides(color=FALSE)
+
+cbind(curated_v3_Bif_species_pco$li, curated_v3_Bif_species_prop_df) %>% 
+  ggplot() + geom_point(aes(x=A1, y=A2, col=`Bifidobacterium longum`)) + guides(color=FALSE)
+
+cbind(curated_v3_Bif_species_pco$li, curated_v3_Bif_species_prop_df) %>% 
+  ggplot() + geom_point(aes(x=A1, y=A2, col=`Bifidobacterium adolescentis`)) + guides(color=FALSE) +
+  ggtitle("PCoA painted with B. adolescentis")
+
+cbind(curated_v3_Bif_species_pco$li, curated_v3_Bif_species_prop_df) %>% 
+select(A1,`Bifidobacterium longum`, `Bifidobacterium adolescentis`) %>%
+  mutate(`Other Bifids` = 1 - (`Bifidobacterium longum` + `Bifidobacterium adolescentis`)) %>%
+  mutate(A1=rank(A1, ties.method="random")) %>%
+  reshape2::melt(id.vars="A1") %>%
+  ggplot() + geom_bar(aes(x=A1,y=value, fill=variable), stat="identity", position="stack", width = 1) +
+  theme_classic() +
+  scale_fill_manual("", values=c("green","blue","grey")) +
+  xlab("samples ranked based on\nBifids PCoA Axis 1") +
+  ylab("Species proportion\nwithin Bifidobacterium genera")
+
+
+
+ggsave("bif_pcoa.pdf")
+
+
+```
+
 
 
 
