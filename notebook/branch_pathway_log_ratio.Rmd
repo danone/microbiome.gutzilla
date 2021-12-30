@@ -15,8 +15,8 @@ devtools::load_all()
 
 
 
-pathway_df = system.file(package="gutzilla", "data-raw/enterobranches/top_10_pathways_in_M16-19-8_logratios_and_annotations.xlsx") %>%
-  readxl::read_xlsx(skip = 2)
+pathway_df = system.file(package="gutzilla", "data-raw/enterobranches/top_10_pathways_in_M16-19-8_logratios_and_annotations-pv.xlsx") %>%
+  readxl::read_xlsx(skip=2)
 
 
 ```
@@ -45,6 +45,18 @@ p_b/p_a + plot_layout(heights = c(1,4))
 
 ```
 
+```{r}
+
+pathway_annot = system.file(package="gutzilla", "data-raw/enterobranches/top_10_pathways_in_M16-19-8_logratios_and_annotations-pv2.xlsx") %>%
+  readxl::read_xlsx(sheet=5) %>% select(`Pathway ID`, 5) %>% dplyr::rename(pathway_cat=2) %>%
+  mutate(pathway_cat = ifelse(pathway_cat=="Archael", "Archeal", pathway_cat))
+
+
+
+
+```
+
+
 
 ```{r fig.height=6, fig.width=10}
 
@@ -59,17 +71,77 @@ pathway_df %>%
   mutate(annot_label = ifelse(delta<0,"reference\nframe",Model)) %>%
   mutate(annot_label=paste("enriched in\n",annot_label)) %>%
   mutate(pathway = paste(`Super pathway`,"(",`Pathway ID`,")")) %>%
-  mutate(pathway = pathway %>% as.factor() %>% forcats::fct_reorder(delta)) %>%
-  mutate(`Pathway name` = `Pathway name` %>% forcats::fct_reorder(delta) ) %>%
+  #mutate(pathway = pathway %>% as.factor() %>% forcats::fct_reorder(delta)) %>%
+  #mutate(`Pathway name` = `Pathway name` %>% forcats::fct_reorder(delta) ) %>%
+  merge(pathway_annot, by="Pathway ID") %>%
+  mutate(pathway_cat = pathway_cat %>% as.factor() %>% forcats::fct_reorder(delta)) %>%
+  arrange(pathway_cat,delta) -> pathway_delta_annot #%>% 
+  #mutate(pathway = pathway %>% as.factor() %>% forcats::fct_reorder(pathway_cat)) %>%
+  #mutate(`Pathway name` = `Pathway name` %>% forcats::fct_reorder(pathway_cat) ) -> pathway_delta_annot
+ 
+# pathway_df %>%
+#   select(`Pathway ID`, `Log-ratios mean`, `Log-ratios CI95 (high)`, `Log-ratios  CI95 (low)`, Model) %>%
+#   mutate(delta_cih = `Log-ratios CI95 (high)` - `Log-ratios mean`, delta_cil = `Log-ratios  CI95 (low)` - `Log-ratios mean`) %>%
+#   mutate(Model = case_when(Model=="M16"~ "Prevotella\nbranch tip", Model=="M21"~ "Bacteroides\nbranch tip")) %>%
+#   select(`Pathway ID`,delta_cih,delta_cil, Model) %>%
+#   merge(pathway_delta_annot, by=c("Pathway ID","Model")) -> pathway_delta_annot
+#   
+
+ 
+  
+p_a=pathway_delta_annot %>%
   ggplot() +
-  geom_point(aes(x=pathway, y=delta, col=Model)) +
+  geom_point(aes(x=forcats::fct_inorder(pathway), y=delta, col=Model)) +
+ # geom_errorbar(aes(x=forcats::fct_inorder(pathway), ymin = delta + delta_cil, ymax = delta + delta_cih, col=Model )) +
   geom_hline(yintercept = 0) +
   coord_flip() +
   facet_grid(annot_label~., scales="free_y", space = "free_y") +
   xlab("") +
   ylab("log-ratio variation\nto the ref. frame") +
-  theme_bw()
+  theme_bw() + theme(legend.position="bottom")
 
+
+
+
+p_b=pathway_delta_annot %>%
+  # mutate(`metabolism category` = case_when(grepl("Archeal",pathway_cat) ~ "Archeal associated",
+  #                                          grepl("CO2",`Pathway name`) ~ "Archeal associated",
+  #                                 grepl("Amino",pathway_cat) ~ "Amino acid",
+  #                                 grepl("Biosynthesis",pathway_cat) ~ "Others biosynthesis",
+  #                                  grepl("degradation",pathway_cat) ~ "Others degradation",
+  #                                  grepl("Oxidation ",pathway_cat) ~ "Oxidation & Respiratory",
+  #                                 TRUE ~ "Others")) %>%
+  # mutate(`metabolism category` = `metabolism category` %>% as.factor() %>% forcats::fct_reorder(pathway_cat)) %>%
+   #mutate(pathway_cat = pathway_cat %>% as.factor() %>% forcats::fct_reorder(pathway_cat)) %>%
+  ggplot() + 
+  geom_tile(aes(x=forcats::fct_inorder(pathway), y=1, fill=`pathway_cat`)) + coord_flip() + 
+  facet_grid(annot_label~., scales="free_y", space = "free_y") +
+  scale_fill_brewer("metabolism\ncategory",type="qual") +
+  theme_void() +
+  theme(strip.text.y = element_text(size=0))
+  #guides(fill=FALSE)
+
+
+
+p_a + p_b + plot_layout(widths = c(5,1))
+
+
+ggsave("figures/figure2.pdf")
+
+pathway_delta_annot$pathway_cat %>% table %>% sort
+
+pathway_delta_annot %>%
+  mutate(`metabolism category` = case_when(
+                                  grepl("Archeal",pathway_cat) ~ "Archeal associated",
+                                  grepl("CO2",`Pathway name`) ~ "Archeal associated",
+                                  grepl("Amino",pathway_cat) ~ "Amino acid",
+                                  grepl("Biosynthesis",pathway_cat) ~ "Others biosynthesis",
+                                   grepl("degradation",pathway_cat) ~ "Others degradation",
+                                  
+                                  TRUE ~ as.character(pathway_cat))) %>%
+  pull(`metabolism category`) %>% table %>% sort
+  
+  
 
 ```
 
