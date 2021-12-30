@@ -1016,7 +1016,7 @@ metadata %>%
   #mutate(AGE_YEARS = ifelse(is.na(AGE_YEARS),mean(AGE_YEARS,na.rm = TRUE),value)) %>%
   #mutate(REGION_BIRTH             = forcats::fct_relevel(REGION_BIRTH, ref = "Northern America")) %>%
   merge(enterotypes %>% select(sample_name, Enterotypes_id), by.y="sample_name", by.x="SAMPLE_NAME") %>%
-  mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>% select(-SAMPLE_NAME) -> metadata_enterotypes_num
+  mutate(Enterotypes_id = paste0("m",Enterotypes_id)) %>% tibble::column_to_rownames("SAMPLE_NAME") -> metadata_enterotypes_num
 
 metadata_enterotypes_num %>%
   select(-Enterotypes_id) %>%
@@ -1359,6 +1359,8 @@ shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shanno
 
 shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
 
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1] %>% filter(!is.na(Enterotypes_id))
+
 
 merge(enterotypes,shannon,by.x="sample_name", by.y="row.names") %>%
   group_by(Enterotypes_id) %>%
@@ -1677,12 +1679,13 @@ regm_tidy %>%
   ggplot() +
   geom_bar(aes(y= y.level ,x=estimate,fill=variable_group), stat="identity", position = "stack") +
   facet_grid(branch~., scale="free", space = "free") + scale_fill_brewer("",type="qual", palette = "Set2") +
-  ylab("") + xlab("absoluted cummulated model weights") + 
+  ylab("Microbiome partition\nordered by branch and by alpha-diversity") + xlab("absoluted cummulated model weights") + 
    cowplot::theme_cowplot() -> fig4C
 
+fig4A = fig4A + ylab("")
 
- ((fig4B + fig4D + plot_layout(widths = c(3.45,1))) /
-   (fig4A + fig4C + plot_layout(widths = c(3,1))) + plot_layout(heights = c(1,3)) )+ plot_annotation(tag_levels = "A")
+ ((fig4D + fig4B + plot_layout(widths = c(1,3))) /
+   (fig4C + fig4A + plot_layout(widths = c(1,3.5))) + plot_layout(heights = c(1,3)) )+ plot_annotation(tag_levels = "a")
  
  ggsave("figures/figure4.pdf")
  
@@ -1753,6 +1756,82 @@ fig4A + coord_flip()
 
 
 ```
+
+
+## hysteresis exploration
+
+
+
+```{r}
+
+metadata_enterotypes_num %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m13"), "Akkermansia DMM types",branch)) %>%
+  filter(branch=="Bacteroides DMM types" | Enterotypes_id =="m5") %>%
+  select(SALTED_SNACKS_FREQUENCY,VEGETABLE_FREQUENCY,SUGARY_SWEETS_FREQUENCY,TYPES_OF_PLANTS,FRUIT_FREQUENCY,ANTIBIOTIC_HISTORY) %>%
+  mutate_all(as.numeric) %>%
+  ade4::dudi.pca(scannf=FALSE, nf=2) -> metadata_enterotypes_pca_branch
+  
+
+
+metadata_enterotypes_num_shannon = merge(metadata_enterotypes_num,shannon, by="row.names")
+  
+
+metadata_enterotypes_num_shannon %>%
+  mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m13"), "Akkermansia DMM types",branch)) %>%
+  filter(branch=="Bacteroides DMM types" | Enterotypes_id =="m5") %>%
+  select(TYPES_OF_PLANTS, shannon, Enterotypes_id) %>%
+  mutate(Enterotypes_id= forcats::fct_reorder(Enterotypes_id, shannon)) %>%
+  #mutate(TYPES_OF_PLANTS=TYPES_OF_PLANTS%>% as.numeric()) %>%
+  ggplot() + 
+  geom_histogram(aes(x=TYPES_OF_PLANTS,fill=Enterotypes_id), stat="count", position="fill")
+
+
+ merge(metadata_enterotypes_num_shannon,metadata_enterotypes_pca_branch$li, by.x="Row.names", by.y="row.names") %>% 
+   mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m13"), "Akkermansia DMM types",branch)) %>%
+  filter(branch=="Bacteroides DMM types" | Enterotypes_id =="m5") %>%
+  mutate(Enterotypes_id= forcats::fct_reorder(Enterotypes_id, shannon)) %>%
+   select(Axis1,shannon,Enterotypes_id) %>%
+   ggplot() + 
+  geom_point(aes(x=Axis1,y=shannon,col=Enterotypes_id), size=1,alpha=0.5)
+
+merge(metadata_enterotypes_num_shannon,metadata_enterotypes_pca_branch$li, by.x="Row.names", by.y="row.names") %>% 
+   mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m13"), "Akkermansia DMM types",branch)) %>%
+  filter(branch=="Bacteroides DMM types" | Enterotypes_id =="m5") %>%
+  mutate(Enterotypes_id= forcats::fct_reorder(Enterotypes_id, shannon)) %>%
+   select(Axis1,shannon,Enterotypes_id) %>%
+  ggplot() + 
+  geom_histogram(aes(x=rank((-Axis1))+1,fill=Enterotypes_id), position="fill", bins=30) +
+  scale_fill_viridis_d()  + scale_x_log10()
+
+
+merge(metadata_enterotypes_num_shannon,metadata_enterotypes_pca_branch$li, by.x="Row.names", by.y="row.names") %>% 
+   mutate(branch ="Clostridiales DMM types") %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch = ifelse(Enterotypes_id %in% c("m13"), "Akkermansia DMM types",branch)) %>%
+  filter(branch=="Bacteroides DMM types" | Enterotypes_id =="m5") %>%
+  mutate(Enterotypes_id= forcats::fct_reorder(Enterotypes_id, shannon)) %>%
+   select(Axis1,shannon,Enterotypes_id) %>%
+  ggplot() + 
+  geom_point(aes(x=rank((-Axis1))+1,y=shannon)) +
+  scale_fill_viridis_d()
+
+
+
+```
+
 
 
 
