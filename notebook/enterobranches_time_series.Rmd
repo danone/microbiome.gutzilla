@@ -841,9 +841,38 @@ metadata %>%
   ungroup() %>%
   arrange(Enterotypes_id_before,desc(n)) %>%
   group_by(Enterotypes_id_before) %>%
-  mutate(p=n/sum(n)) %>%
-  dplyr::slice(1:3) -> enterotypes_time_series_network
-   
+  mutate(p=n/sum(n))-> enterotypes_time_series_network
+  #dplyr::slice(1:3) 
+
+enterotypes_time_series_network %>%
+  dplyr::slice(1) %>%
+  pull(n) %>% sum
+
+enterotypes_time_series_network %>%
+  dplyr::slice(2:20) %>%
+  pull(n) %>% sum
+
+enterotypes_time_series_network %>%
+  pull(n) %>% sum
+
+
+  enterotypes_time_series_network %>%
+    #ungroup() %>%
+    filter(p>0.05) -> enterotypes_time_series_network
+ 
+enterotypes_time_series_network %>%
+  dplyr::slice(1) %>%
+  pull(n) %>% sum
+
+enterotypes_time_series_network %>%
+  dplyr::slice(2:20) %>%
+  pull(n) %>% sum
+
+enterotypes_time_series_network %>%
+  pull(n) %>% sum
+
+enterotypes_time_series_network %>% write.table(file="enterotypes_time_series_network.txt", sep = "\t")  
+  
 enterotypes_time_series_network %>%
   group_by(Enterotypes_id_before) %>%
   summarise(p=sum(p)) %>% pull(p) %>% summary() # if you select the top 2 switches + stability (=>66% average)
@@ -859,7 +888,10 @@ enterotypes_time_series_network %>%
   filter(!(Enterotypes_id_before==Enterotypes_id)) %>%
   select(Enterotypes_id_before,Enterotypes_id, p) -> enterotypes_time_series_switch
 
-
+# enterotypes_time_series_network %>%
+#   filter(!(Enterotypes_id_before==Enterotypes_id)) %>%
+#   select(Enterotypes_id_before,Enterotypes_id, n, p) %>%
+#   filter(n>5) %>% select(Enterotypes_id_before,Enterotypes_id, p) -> enterotypes_time_series_switch
 
 enterotypes_time_series_stability %>%
   mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
@@ -870,7 +902,7 @@ enterotypes_time_series_stability %>%
 ```
 
 
-```{r}
+```{r fig.height=4, fig.width=6}
 library(igraph)
 library(ggraph)
 
@@ -880,26 +912,97 @@ graph <- igraph::graph_from_data_frame(enterotypes_time_series_switch)
 
 V(graph)
 
+enterotypes_time_series_stability =
+enterotypes_time_series_stability %>% .[match(names(V(graph)), enterotypes_time_series_stability$Enterotypes_id),]
+
 V(graph)$stability <- enterotypes_time_series_stability$stability         
 V(graph)$branches <-  enterotypes_time_series_stability$branches 
 V(graph)$partition_names <-   enterotypes_time_series_stability$Enterotypes_id
   
 ggraph(graph, weights=p, layout="stress") +
-  geom_edge_fan(aes(alpha = p), arrow=arrow(angle = 20, length = unit(4, "mm")), end_cap = circle(3, 'mm')) + 
+  geom_edge_fan(aes(alpha = p, color=p), arrow=arrow(angle = 20, length = unit(4, "mm")), end_cap = circle(3, 'mm')) + 
   #scale_alpha_ordinal("participants proportion") +
   #geom_node_point(aes(color=branches,size=stability*2)) +
-  geom_node_label(aes(label=partition_names, fill=branches, size=stability)) + 
-  scale_fill_brewer(type="qual") +
+  #geom_node_point(aes(color=branches,size=stability)) +
+  geom_node_label(aes(label=partition_names, fill=branches %>% gsub("DMM types","",.), size=stability), shape=15) + 
+  #geom_node_text(aes(label=partition_names), repel=TRUE) +
+  scale_color_brewer(type="qual") +
+  scale_fill_brewer("DMM types", type="qual") +
   scale_alpha_continuous("participants proportion") + 
-  scale_edge_alpha("ind. proportion") + 
-  scale_size_continuous("time stability") +
+  scale_edge_alpha("ind. proportion (switch)") + 
+  scale_edge_color_continuous("ind. proportion (switch)", low = "grey", high ="red", guide = FALSE) +
+  scale_size_continuous("ind. proportion (stable)", trans="log10", limits = c(0.1,0.9), breaks = c(0.3,0.6,0.9)) +
   theme_void() -> fig5A
   
 fig5A
 
+enterotypes_time_series_stability %>%
+  #filter(branches=="Bacteroides DMM types"| Enterotypes_id %in% c(1,5)) %>%
+  #mutate(Enterotypes_id=Enterotypes_id %>% as.character %>% factor(levels=c("1","5","2","4","3","8","10","6","15","11"))) %>%
+  ggplot() + geom_bar(aes(x=Enterotypes_id, y=stability), stat="identity") +
+  xlab("Bacteroides branch partitions\nordered by PHATE centroid position") +
+  ylab("stability") +
+  cowplot::theme_cowplot()
+  
+
+```
+
+```{r}
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  
+  
+  filter(days == 0 | days > 60*60*24) %>%
+  
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>%
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(SAMPLE_NAME,HOST_SUBJECT_ID, days, sample_order, branches, Enterotypes_id, shannon) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character ) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), 
+         branches_before=lag(branches), days_delta= days - lag(days), 
+         Enterotypes_id_before = lag(Enterotypes_id %>% as.character),
+         shannon_before = lag(shannon)) %>%
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  mutate(days_delta_bins = cut(days_delta, breaks = c(-1,60*60*24*7,120*24*60*60,365*60*60*24,10000*60*60*24))) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  select(SAMPLE_NAME,Enterotypes_id.x,Enterotypes_id_before,value) %>%
+  mutate(stability=ifelse(Enterotypes_id.x==Enterotypes_id_before, "stable","unstable")) %>%
+  #with(.,wilcox.test(data=., value~stability))
+  #ggplot() + ggforce::geom_sina(aes(x=stability,y=value)) + facet_wrap(~Enterotypes_id_before)
+  ggplot() + geom_bar(aes(x=stability,fill=value>0.8), position="fill") + facet_wrap(~Enterotypes_id.x)
+  #ggplot() + geom_density(aes(x=value, fill=stability), alpha=0.5)
 
 
 ```
+
 
 
 
@@ -907,7 +1010,7 @@ fig5A
 
 main switches occurred between #6 and #2, #3 and #5
 
-
+### M6 M2
 ```{r}
 #compute fprau/bacteroides ratio and merge
 
@@ -1090,8 +1193,8 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
 df %>%
   mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
   ggplot() + geom_point(aes(x=log2(ratio_before) - log2(ratio),y=log2(shannon_before/shannon), color=switch)) +
-  xlim(-4,4) + ylim(-0.5, 0.5) + cowplot::theme_cowplot() + 
-  xlab("Feacalibacterium/Bacteroides variation") + ylab("alpha-diversity variation")
+  xlim(-4,4) + ylim(-0.5, 0.5) + cowplot::theme_cowplot() + scale_color_brewer("", type="qual", palette = 2) +
+  xlab("Feacalibacterium/Bacteroides variation") + ylab("alpha-diversity variation") -> figS10A
 
 
 
@@ -1129,6 +1232,31 @@ fig5B
 
 ```
 
+```{r}
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  mutate(stable = ifelse(switch %in% c("2 2","6 6"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("2 2","2 6"), "M2","M6")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  #with(.,wilcox.test(data=., value~stable))
+  ggplot() + ggforce::geom_sina	(aes(x=stable,y=value,color=Enterotypes_id.x))
+
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  mutate(stable = ifelse(switch %in% c("2 2","6 6"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("2 2","2 6"), "M2","M6")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  group_by(switch) %>%
+  summarise(m=median(ratio), q25 = quantile(ratio, 0.25), q75 = quantile(ratio, 0.75))
+
+
+```
 
 
 ### pca analysis
@@ -1283,7 +1411,7 @@ plot.roc(model$pred$obs[selectedIndices],
 
 
 
-
+### M5 M3
 
 ```{r}
 metadata %>%
@@ -1435,8 +1563,8 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
 df %>%
   mutate(delta_ratio = abs(log2(ratio_before) - log2(ratio))) %>%
   ggplot() + geom_point(aes(x=log2(ratio_before) - log2(ratio),y=log2(shannon_before/shannon), color=switch)) +
-  xlim(-4,4) + ylim(-0.5, 0.5) + cowplot::theme_cowplot() + 
-  xlab("Feacalibacterium/Bacteroides variation") + ylab("alpha-diversity variation")
+  xlim(-4,4) + ylim(-0.5, 0.5) + cowplot::theme_cowplot() + scale_color_brewer("", type="qual", palette = 2) +
+  xlab("Feacalibacterium/Bacteroides variation") + ylab("alpha-diversity variation") -> figS10B
 
 
 
@@ -1489,6 +1617,60 @@ df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch) %>%
   #filter(stable!="stable") %>%
   pull(ratio) %>%
   log(.,2) %>% diptest::dip.test()
+
+
+```
+```{r}
+
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  mutate(stable = ifelse(switch %in% c("5 5","3 3"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("5 5","5 3"), "M5","M3")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  #with(.,wilcox.test(data=., value~stable))
+  #ggplot() + ggforce::geom_sina	(aes(x=stable,y=value,color=Enterotypes_id.x))
+  ggplot() + geom_bar(aes(x=stable,fill=value>0.9), position="fill")
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  mutate(stable = ifelse(switch %in% c("5 5","3 3"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("5 5","5 3"), "M5","M3")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(value>quantile(value,2/3)|value<quantile(value,1/3)) %>%
+  mutate(value=value>quantile(value,0.5)) %>%
+  with(., chisq.test(stable,value))
+  
+  
+  #ggplot() + geom_bar(aes(x=stable,fill=value>quantile(value,0.5)), position="fill") + scale_fill_brewer("")
+
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  mutate(stable = ifelse(switch %in% c("5 5","3 3"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("5 5","5 3"), "M5","M3")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(value>0.99, stable==stable) %>%
+  pull(ratio) %>% diptest::dip.test()
+  
+  #ggplot() + geom_density(aes(x=ratio)) + scale_x_continuous(trans="log2")
+  
+
+rbind(df %>% select(SAMPLE_NAME,Enterotypes_id,shannon, switch, ratio) ,
+      df %>% select(SAMPLE_NAME,Enterotypes_id_before,shannon_before, switch, ratio_before) %>% dplyr::rename(Enterotypes_id=Enterotypes_id_before,shannon=shannon_before, ratio=ratio_before)) %>% 
+        mutate(SAMPLE_NAME = SAMPLE_NAME %>% forcats::fct_reorder(ratio)) %>%
+  mutate(stable = ifelse(switch %in% c("2 2","6 6"), "stable","unstable")  ) %>%
+  mutate(start_partition = ifelse(switch %in% c("2 2","2 6"), "M2","M6")  ) %>%
+  mutate(start_partition = start_partition %>% forcats::fct_reorder(ratio, .desc=TRUE)) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  group_by(switch) %>%
+  summarise(m=median(ratio), q25 = quantile(ratio, 0.25), q75 = quantile(ratio, 0.75))
 
 
 ```
@@ -1649,7 +1831,7 @@ plot.roc(model$pred$obs[selectedIndices],
 ## Figure 5 - Time series
 
 
-```{r fig.height=8, fig.width=15}
+```{r fig.height=6, fig.width=12}
 
 library(patchwork)
 
@@ -1672,13 +1854,695 @@ library(patchwork)
 # patch_plot[[2]][[1]] + plot_annotation(tag_levels = "A")
 
 
-((fig5A) | (fig5B_full/fig5C_full)) + plot_annotation(tag_levels = "A") + plot_layout(widths = c(2,1.5))
+((fig5A) | (fig5B_full/fig5C_full)) + plot_annotation(tag_levels = "a") + plot_layout(widths = c(2,1.5))
 
-ggsave("figures/figure5.pdf")
+ggsave("figures/figure5_bis.pdf")
+
+```
+
+
+```{r}
+
+genus %>%
+  filter(taxa %in% c(f_GG,b_GG)) %>%
+  tibble::column_to_rownames("taxa") %>%
+  t %>%
+  as.data.frame() %>%
+  dplyr::rename(Feacalibacterium=2,Bacteroides=1) %>%
+  mutate(ratio=Feacalibacterium/Bacteroides) -> f_b_ratio
+
+# metadata %>%
+#   filter(SAMPLE_TYPE == "Stool") %>%
+#   select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+#   mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+#   merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+#   merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+#   filter(set != "outliers") %>%
+#   filter(Enterotypes_id != 19) %>%
+#   group_by(HOST_SUBJECT_ID) %>%
+#   mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+#   filter(n>1) %>%
+#   
+#   mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+#   group_by(HOST_SUBJECT_ID) %>%
+#   arrange(HOST_SUBJECT_ID, days) %>%
+#   mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>%
+#   filter(Enterotypes_id %in% c(2,6)) %>%
+#   ggplot() + geom_line(aes(x=days,y=shannon,group=HOST_SUBJECT_ID, col=as.character(Enterotypes_id))) 
+  
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  #filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  
+  
+  filter(days == 0 | days > 60*60*24) %>%
+  
+  
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>%
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(SAMPLE_NAME, HOST_SUBJECT_ID, days, sample_order, branches, Enterotypes_id, shannon, ratio) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character ) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), 
+         branches_before=lag(branches), days_delta= days - lag(days), 
+         Enterotypes_id_before = lag(Enterotypes_id %>% as.character),
+         shannon_before = lag(shannon),
+         ratio_before = lag(ratio)) %>%
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  #filter(Enterotypes_id %in% c(2,6), Enterotypes_id_before %in% c(2,6)) %>%
+  ungroup() %>%
+  select(SAMPLE_NAME,Enterotypes_id,shannon,ratio, Enterotypes_id_before,shannon_before, ratio_before) %>%
+  mutate(switch=paste(Enterotypes_id,Enterotypes_id_before)) -> df
+
+
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2,5,1)) %>%
+  ggplot() + geom_boxplot(aes(x=log2(ratio), y=as.character(Enterotypes_id)))
+
+
+
+```
+### fig supp
+```{r fig.height=5, fig.width=10}
+
+figS10A + figS10B + patchwork::plot_annotation(tag_level = "a")
+
+
+ggsave("figS10.pdf")
+
+```
+
+
+### F B ratio
+
+```{r}
+
+genus %>%
+  filter(taxa %in% c(f_GG,b_GG)) %>%
+  tibble::column_to_rownames("taxa") %>%
+  t %>%
+  as.data.frame() %>%
+  dplyr::rename(Feacalibacterium=2,Bacteroides=1) %>%
+  mutate(ratio=Feacalibacterium/Bacteroides) -> f_b_ratio
+
+# metadata %>%
+#   filter(SAMPLE_TYPE == "Stool") %>%
+#   select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+#   mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+#   merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+#   merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+#   filter(set != "outliers") %>%
+#   filter(Enterotypes_id != 19) %>%
+#   group_by(HOST_SUBJECT_ID) %>%
+#   mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+#   filter(n>1) %>%
+#   
+#   mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+#   group_by(HOST_SUBJECT_ID) %>%
+#   arrange(HOST_SUBJECT_ID, days) %>%
+#   mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>%
+#   filter(Enterotypes_id %in% c(2,6)) %>%
+#   ggplot() + geom_line(aes(x=days,y=shannon,group=HOST_SUBJECT_ID, col=as.character(Enterotypes_id))) 
+  
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_datetime()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  merge(shannon, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  merge(f_b_ratio, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  #filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  
+  
+  filter(days == 0 | days > 60*60*24) %>%
+  
+  
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>%
+  #arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(SAMPLE_NAME, HOST_SUBJECT_ID, days, sample_order, branches, Enterotypes_id, shannon, ratio) %>%
+  mutate(Enterotypes_id = Enterotypes_id %>% as.character ) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(same_branches_lag = ifelse(branches == lag(branches), "yes","no"), 
+         branches_before=lag(branches), days_delta= days - lag(days), 
+         Enterotypes_id_before = lag(Enterotypes_id %>% as.character),
+         shannon_before = lag(shannon),
+         ratio_before = lag(ratio)) %>%
+  filter(sample_order >1) %>%
+  mutate(branches_pairs=paste0(branches_before,"-",branches)) %>%
+  #filter(Enterotypes_id %in% c(2,6), Enterotypes_id_before %in% c(2,6)) %>%
+  ungroup() %>%
+  select(SAMPLE_NAME,Enterotypes_id,shannon,ratio, Enterotypes_id_before,shannon_before, ratio_before, branches) %>%
+  mutate(switch=paste(Enterotypes_id,Enterotypes_id_before)) -> df
+
+
+
+df %>%
+  filter(branches=="Bacteroides DMM types") %>%
+  ggplot() + 
+  geom_density(aes(x=ratio)) + scale_x_continuous(trans="log2") +
+  geom_vline(xintercept = 1/4)
+
+
+genus %>%
+  filter(taxa %in% c(f_GG,b_GG)) %>%
+  tibble::column_to_rownames("taxa") %>%
+  t %>%
+  as.data.frame() %>%
+  dplyr::rename(Feacalibacterium=2,Bacteroides=1) %>%
+  mutate(ratio=(Feacalibacterium+1)/(Bacteroides+1)) -> f_b_ratio
+
+
+
+f_b_ratio %>%
+  merge(enterotypes,., by.y="row.names", by.x="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(value>0.80) %>%
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  filter(branches=="Bacteroides DMM types") %>%
+  ggplot() + 
+  geom_density(aes(x=ratio)) + scale_x_continuous(trans="log2") +
+  geom_vline(xintercept = 1/4)
+
+f_b_ratio %>%
+  merge(enterotypes,., by.y="row.names", by.x="sample_name") %>%
+  filter(set != "outliers") %>%
+  #filter(value>0.80) %>%
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  filter(branches=="Bacteroides DMM types") %>% 
+  #pull(ratio) %>% log2() %>% microbiome::bimodality(method = "Sarle.finite.sample", bs.iter=100, verbose=TRUE)
+  ggplot() + geom_density(aes(x=ratio, color=value>0.80)) + scale_x_continuous(trans="log2") +
+  geom_vline(xintercept = 1/4) + cowplot::theme_cowplot() +
+  xlab("Faecalibacterium Bacteroides ratio\nwithin Bacteroides enriched branch")
+
+
+
+
+
+
+```
+
+
+```{r}
+
+f_b_ratio %>%
+  merge(enterotypes,., by.y="row.names", by.x="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(value>0.80) %>%
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  filter(branches=="Bacteroides DMM types") %>% 
+  pull(ratio) %>%  diptest::dip.test()
+  ggplot() + geom_density(aes(x=ratio, color=value>0.80)) + scale_x_continuous(trans="log2")
+
+
+
+
+
 
 ```
 
 
 
+### prevotella bacteroides ratio
+
+```{r}
+
+
+f_GG = "k__Bacteria;p__Firmicutes;c__Clostridia;o__Clostridiales;f__Ruminococcaceae;g__Faecalibacterium"
+b_GG = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Bacteroidaceae;g__Bacteroides"
+p_GG = "k__Bacteria;p__Bacteroidetes;c__Bacteroidia;o__Bacteroidales;f__Prevotellaceae;g__Prevotella"
+
+genus %>%
+  filter(taxa %in% c(b_GG,p_GG)) %>%
+  tibble::column_to_rownames("taxa") %>%
+  t %>%
+  as.data.frame() %>%
+  dplyr::rename(Prevotella=2,Bacteroides=1) %>%
+  mutate(ratio=(Prevotella+1)/(Bacteroides+1)) -> p_b_ratio
+
+
+p_b_ratio %>%
+  merge(enterotypes,., by.y="row.names", by.x="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(value>0.80) %>%
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  filter(branches=="Prevotella DMM types") %>% 
+  #pull(ratio) %>% log2() %>% magrittr::add(100) %>% diptest::dip()
+  ggplot() + geom_density(aes(x=ratio)) + scale_x_continuous(trans="log2") +
+  geom_vline(xintercept = 4) + cowplot::theme_cowplot() +
+  xlab("Prevotella Bacteroides ratio\nwithin Prevotella enriched branch")
+
+
+
+p_b_ratio %>%
+  merge(enterotypes,., by.y="row.names", by.x="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(value>0.80) %>%
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  filter(branches=="Prevotella DMM types") %>% 
+  pull(ratio) %>% log2() %>% multimodality.dip()
+  ggplot() + geom_density(aes(x=ratio, color=value>0.80)) + scale_x_continuous(trans="log2") +
+  geom_vline(xintercept = 1/4) + cowplot::theme_cowplot() +
+  xlab("Prevotella Bacteroides ratio\nwithin Bacteroides enriched branch")
+
+
+```
+
+
+# bimodality and stability
+
+```{r}
+
+metadata %>%
+  filter(SAMPLE_TYPE == "Stool") %>%
+  select(HOST_SUBJECT_ID,SAMPLE_NAME, COLLECTION_TIMESTAMP) %>%
+  mutate(COLLECTION_TIMESTAMP = COLLECTION_TIMESTAMP %>% lubridate::as_date()) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(set != "outliers") %>%
+  filter(Enterotypes_id != 19) %>%
+  group_by(HOST_SUBJECT_ID) %>%
+  mutate(min_date = min(COLLECTION_TIMESTAMP), n=n()) %>%
+  #filter(n>1) %>%
+  
+  mutate(days=COLLECTION_TIMESTAMP - min_date) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  arrange(HOST_SUBJECT_ID, days) %>%
+  mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
+  
+
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+                              TRUE ~ "outliers")
+         ) %>%
+  
+  mutate(days_0=branches[which.min(sample_order)]) %>% 
+  arrange(HOST_SUBJECT_ID)  %>% 
+  #mutate(sample_order=rank(days)) %>%
+  mutate(days = as.numeric(days)) %>%
+  select(SAMPLE_NAME,HOST_SUBJECT_ID,days,value,Enterotypes_id,branches) %>%
+  dplyr::rename(time=days,subject=HOST_SUBJECT_ID) %>% mutate(sample=SAMPLE_NAME) %>% tibble::column_to_rownames("SAMPLE_NAME")-> metadata_for_physeq
+
+
+genus %>% tibble::column_to_rownames("taxa") %>% otu_table(taxa_are_rows=TRUE) -> genus_for_phyloseq
+
+genus %>%
+  select(taxa) %>%
+  tidyr::separate(taxa, into=c("k","p","c","o","f","g"),remove = FALSE, sep = ";") %>%
+  tibble::column_to_rownames("taxa") %>% as.matrix %>% tax_table() -> taxa_for_phyloseq
+
+
+pseq=phyloseq(OTU=genus_for_phyloseq, sample_data(metadata_for_physeq), TAX=taxa_for_phyloseq )
+
+
+
+
+
+```
+
+
+```{r}
+
+
+
+pseq=phyloseq(OTU=genus_for_phyloseq, sample_data(metadata_for_physeq), TAX=taxa_for_phyloseq )
+
+pseq <- pseq %>% subset_samples(value>0.80)
+#pseq <- pseq %>% subset_samples(branches == "Bacteroides DMM types")
+pseq <- microbiome::transform(pseq, "compositional")
+pseq <- aggregate_rare(pseq, level="g", detection = .1/100, prevalence = 5/100)
+pseq0 <- baseline(pseq)
+
+otu_table(pseq) %>% dim
+
+```
+
+## intermediate stability quantification
+```{r}
+
+# Here we use the (non-baseline) phyloseq object that contains time series.
+intermediate.stability <- intermediate_stability(pseq, output = "scores") #clr transfo included
+
+intermediate.stability %>% sort %>% round(3)
+```
+
+
+
+## bimodality quantifycation
+
+```{r}
+# Bimodality is better estimated from abundances at log scale (such as CLR)
+pseq0.clr <- microbiome::transform(pseq0, "clr")
+
+set.seed(4433)
+
+
+
+bimodality.score <- bimodality(pseq0.clr, method = "potential_analysis",
+                               bs.iter = 100, peak.threshold = 10,
+                   min.density = 10)
+
+bimodality.score %>% sort %>% round(3)
+
+```
+
+
+## Comparing bimodality and intermediate stability
+
+```{r}
+
+taxa <- taxa(pseq0)
+df <- data.frame(group = as.character(taxa) %>% gsub("g__","",.),
+intermediate.stability = intermediate.stability[taxa],
+bimodality = bimodality.score[taxa])
+theme_set(theme_bw(20))
+
+df = df %>%
+  mutate(group = group %>% as.character()) %>%
+  mutate(label = ifelse(bimodality > 0.6 & intermediate.stability < 0, group, ''))
+
+df %>%
+  filter(bimodality > 0.6 & intermediate.stability < -0.1) %>%
+  arrange(intermediate.stability)
+
+
+library(ggrepel)
+
+p <- ggplot(df,
+  aes(x = intermediate.stability, y = bimodality, label = '')) + #Doesn't add labels to points
+  geom_text_repel() +
+  geom_point()
+
+#Labels only those that have bimodality > 0.4 and intermediate stability < 0, adjusts the placement of labels
+p <- p + geom_text(aes(label = ifelse(bimodality > 0.6 & intermediate.stability < -0.25, group, '')), vjust = "inward", hjust = "inward")
+
+print(p)
+
+
+```
+
+
+## Tipping point
+
+```{r}
+
+# Log10 abundance for a selected taxonomic group
+# Pick the most bimodal taxa as an example
+#tax  <- names(which.max(bimodality.score))
+tax = "g__Methanobrevibacter"
+
+# Detect tipping points at log10 abundances
+x <- abundances(microbiome::transform(pseq, "clr"))[tax,]
+
+# Bootstrapped potential analysis to identify potential minima
+# in practice, use more bootstrap iterations
+potential.minima <- potential_analysis(x, bs.iter = 10)$minima
+
+# Same with earlywarnings package (without bootstrap ie. less robust)
+# library(earlywarnings)
+# res <- livpotential_ews(x)$min.points
+
+# Identify the potential minimum locations as tipping point candidates
+tipping.samples <- sapply(potential.minima, function (m) {names(which.min(abs(sort(x) - m)))})
+tipping.point <- abundances(pseq)[tax, tipping.samples]
+print(tipping.point)
+
+
+```
+
+
+```{r}
+# Illustrate the detected tipping point
+plot(density(x), main = tax)
+abline(v = x[tipping.samples])
+hist(x, main = tax)
+abline(v = x[tipping.samples])
+```
+
+## by branch
+
+
+```{r}
+branches = c("Bacteroides DMM types","Prevotella DMM types", "Clostridiales DMM types", "Akkermansia DMM types")
+res=NULL
+for(branch in branches) {
+  
+  set.seed(666)
+  pseq=phyloseq(OTU=genus_for_phyloseq, sample_data(metadata_for_physeq), TAX=taxa_for_phyloseq )
+  pseq <- pseq %>% subset_samples(value>0.80)
+  pseq <- pseq %>% subset_samples(branches == branch)
+  pseq <- microbiome::transform(pseq, "compositional")
+  pseq <- aggregate_rare(pseq, level="g", detection = .1/100, prevalence = 5/100)
+  pseq0 <- baseline(pseq)
+  intermediate.stability <- intermediate_stability(pseq, output = "scores")
+  pseq0.clr <- microbiome::transform(pseq0, "clr")
+  bimodality.score <- bimodality(pseq0.clr, method = "potential_analysis",
+                               bs.iter = 100, peak.threshold = 10,
+                   min.density = 10)
+  
+  res=rbind(
+  as_tibble(data.frame(bimodality.score,intermediate.stability, branches=branch) %>% tibble::rownames_to_column("taxa")),
+  res
+  )
+  
+}
+```
+
+
+```{r}
+merge(res,
+data.frame(bimodality_score_all=bimodality.score,intermediate_stability_all=intermediate.stability),
+by.y="row.names", by.x="taxa") %>%
+  filter(branches != "Akkermansia DMM types") %>%
+  ggplot + geom_point(aes(x=intermediate_stability_all, y=intermediate.stability, col=branches)) +
+  geom_abline(slope=1)
+  
+
+merge(res,
+data.frame(bimodality_score_all=bimodality.score,intermediate_stability_all=intermediate.stability),
+by.y="row.names", by.x="taxa") %>%
+  filter(branches != "Akkermansia DMM types") %>%
+  filter(intermediate_stability_all>0,intermediate.stability< -0.1, bimodality.score>0.6) %>%
+  arrange(branches) %>% pull(taxa) %>% unique -> taxa_bistable_branch
+  
+
+merge(res,
+data.frame(bimodality_score_all=bimodality.score,intermediate_stability_all=intermediate.stability),
+by.y="row.names", by.x="taxa") %>%
+  filter(branches != "Akkermansia DMM types") %>%
+  filter(intermediate_stability_all< -0.1,intermediate.stability>0, bimodality_score_all>0.6) %>%
+  arrange(branches) %>% pull(taxa) %>% unique
+
+
+data.frame(bimodality_score_all=bimodality.score,intermediate_stability_all=intermediate.stability) %>%
+  filter(intermediate_stability_all< -0.1, bimodality_score_all>0.6) %>%
+  row.names() -> taxa_bistable_all
+
+
+
+
+
+
+```
+
+
+
+```{r}
+
+
+pseq=phyloseq(OTU=genus_for_phyloseq, sample_data(metadata_for_physeq), TAX=taxa_for_phyloseq )
+
+pseq0 <- baseline(pseq)
+
+sample_data(pseq) %>%
+  as_tibble() %>%
+  mutate(Enterotypes_id = as.character(Enterotypes_id)) %>%
+  group_by(subject) %>%
+  arrange(subject) %>%
+  mutate(n=n()) %>%
+  filter(n>1) %>%
+  arrange(subject,time) %>%
+  mutate(sample_before = lag(sample), time_before=lag(time), Enterotypes_id_before=lag(Enterotypes_id)) %>%
+  filter(!(time_before==time)) %>%
+  select(subject,time,time_before,sample,sample_before,Enterotypes_id,Enterotypes_id_before) %>%
+  mutate(partition_stability=ifelse(Enterotypes_id_before==Enterotypes_id,"stable","unstable")) -> metadata_time_lag
+  
+samples_time_series = sample_data(pseq) %>% as_tibble() %>% group_by(subject) %>% mutate(n=n()) %>% filter(n>1) %>% pull(sample)
+
+
+
+pseq %>%
+  aggregate_rare(level="g", detection = .1/100, prevalence = 5/100) %>%
+  microbiome::transform("clr") %>%
+  otu_table() %>%
+  data.frame(check.names = FALSE) %>%
+  tibble::rownames_to_column("taxa") %>%
+  as_tibble() %>%
+  filter(taxa %in% c(taxa_bistable_branch,taxa_bistable_all)) -> df_tmp
+  
+df_tmp %>% 
+  select(taxa, all_of(samples_time_series)) %>%
+  reshape2::melt() -> taxa_time_melt
+
+
+metadata_time_lag %>%
+  merge(taxa_time_melt, by.x="sample", by.y="variable") %>%
+  merge(taxa_time_melt, by.x=c("taxa","sample_before"), by.y=c("taxa","variable")) -> metadata_taxa_time_lag
+
+
+
+
+```
+
+
+
+
+```{r fig.height=7, fig.width=7}
+
+metadata_taxa_time_lag %>%
+  filter(taxa %in% c("g__Lactobacillus","g__Desulfovibrio")) %>%
+  mutate(value_abs=ifelse(value.x<value.y, value.x, value.y)) %>%
+  mutate(delta = abs(value.x-value.y)) %>%
+  mutate(switch = paste(Enterotypes_id_before,Enterotypes_id, sep="_")) %>%
+  group_by(switch) %>%
+  mutate(n_switch = n()) %>%
+  filter(n_switch > 15) %>%
+  ungroup() %>%
+  group_by(taxa) %>%
+  mutate(sample = sample %>% forcats::fct_reorder(value_abs, .desc=TRUE)) %>%
+  ggplot() + geom_segment(aes(x=value.x, xend=value.y,y=sample,yend=sample, col=partition_stability)) + 
+  facet_grid(switch~taxa, scales = "free") + 
+  scale_color_manual(values=c("grey","pink")) +
+  cowplot::theme_cowplot() +
+  theme(axis.text.y = element_blank())
+
+
+metadata_taxa_time_lag %>%
+  filter(taxa %in% c("g__Methanobrevibacter","g__Desulfovibrio")) %>%
+  mutate(value_abs=ifelse(value.x<value.y, value.x, value.y)) %>%
+  mutate(delta = abs((value.x+value.y)/2)) %>%
+  mutate(switch = paste(Enterotypes_id_before,Enterotypes_id, sep="_")) %>%
+  group_by(switch) %>%
+  mutate(n_switch = n()) %>%
+  filter(n_switch > 6) %>%
+  ungroup() %>%
+  ggplot() + geom_boxplot(aes(x=switch,y=delta)) + 
+  facet_grid(partition_stability~taxa, scale="free", space = "free_y" ) +
+  coord_flip()
+
+
+metadata_taxa_time_lag %>%
+  filter(taxa %in% c("g__Prevotella","g__Odoribacter")) %>%
+  mutate(value_abs=ifelse(value.x<value.y, value.x, value.y)) %>%
+  mutate(value_m = ((value.x+value.y)/2)) %>%
+  mutate(delta = abs(value.x-value.y)) %>%
+  mutate(switch = paste(Enterotypes_id_before,Enterotypes_id, sep="_")) %>%
+  group_by(switch) %>%
+  mutate(n_switch = n()) %>%
+  #filter(n_switch > 15) %>%
+  ungroup() %>%
+  #filter(partition_stability=="unstable") %>%
+  ggplot() + geom_point(aes(x=value_m,y=delta,col=partition_stability)) + 
+  facet_grid(partition_stability~taxa)
+
+
+metadata_taxa_time_lag %>%
+  filter(taxa %in% c("g__Prevotella","g__Bacillus")) %>%
+  mutate(value_abs=ifelse(value.x<value.y, value.x, value.y)) %>%
+  mutate(value_m = abs((value.x+value.y)/2)) %>%
+  mutate(delta = abs(value.x-value.y)) %>%
+  mutate(switch = paste(Enterotypes_id_before,Enterotypes_id, sep="_")) %>%
+  group_by(switch) %>%
+  mutate(n_switch = n()) %>%
+  #filter(n_switch > 15) %>%
+  ungroup()
+
+
+
+
+```
 
 
