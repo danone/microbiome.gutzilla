@@ -1,0 +1,285 @@
+---
+title: "export agp data"
+output: html_notebook
+---
+
+load libraries
+
+```{r}
+
+library(dplyr)
+devtools::load_all(reset = FALSE)
+
+
+```
+
+
+import data
+
+```{r}
+
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "gutzilla"), stringsAsFactors = FALSE) %>% mutate_all(na_if,"")
+
+genus_path = system.file("data-raw/qiime/generated-files-20190512/taxa/genus.qza", package = "gutzilla")
+genus = qiime2R::read_qza(genus_path)$data %>% as.data.frame %>% tibble::rownames_to_column("taxa")  %>% as_tibble()
+
+#enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+
+
+```
+
+
+add region of birth
+
+```{r}
+
+
+data("UNSD_countries")
+
+metadata <- metadata %>% 
+  #select(SAMPLE_NAME, COUNTRY_OF_BIRTH) %>%
+  merge(UNSD_countries %>% 
+          select(`Country or Area`, `Sub-region Name`, `Region Name`) %>% 
+          mutate(`Country or Area` =  gsub("United Kingdom of Great Britain and Northern Ireland", "United Kingdom", `Country or Area`)) %>% 
+          mutate(`Country or Area` =  gsub("United States of America", "USA", `Country or Area`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Central Asia", "Southern Asia"), "Central and Southern Asia",`Sub-region Name`)) %>%
+          mutate(`Sub-region Name` =  ifelse(`Sub-region Name` %in% c("Melanesia", "Micronesia","Polynesia"), "Oceania (others)",`Sub-region Name`)), 
+        by.x="COUNTRY_OF_BIRTH", by.y="Country or Area", all.x = TRUE)
+
+
+
+```
+
+
+import outliers file
+```{r}
+
+outliers = readLines(con="outliers_samples.txt")
+
+```
+
+
+
+compute genus proportions
+```{r}
+
+genus %>%
+  #select(1:10) %>%
+  mutate_at(-1, ~./sum(.)) -> genus_prop
+
+top_genus_mass = 
+  genus_prop %>% 
+  select(-all_of(outliers)) %>%
+  tibble::column_to_rownames("taxa") %>% 
+  as.matrix %>% 
+  apply(1,sum) %>% 
+  sort %>% rev %>% head(100)
+
+
+genus_prop %>%
+  select(-all_of(outliers)) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_genus_mass),]-> genus_prop
+
+
+```
+
+
+metadata to select
+
+```{r}
+
+
+host_variables = 
+c("AGE_YEARS", "BMI_CAT","SEX", "COUNTRY", "ANTIBIOTIC_HISTORY", "GLUTEN","LACTOSE","Sub-region Name")
+
+
+diet_variables =
+  c("TYPES_OF_PLANTS",
+  "DIET_TYPE",
+  "ALCOHOL_FREQUENCY",
+  "RED_MEAT_FREQUENCY",
+  "WHOLE_GRAIN_FREQUENCY",
+  "VEGETABLE_FREQUENCY",
+  "MEAT_EGGS_FREQUENCY",
+  "PREPARED_MEALS_FREQUENCY",
+  "FRUIT_FREQUENCY",
+  "ONE_LITER_OF_WATER_A_DAY_FREQUENCY",
+  "SEAFOOD_FREQUENCY",
+  "HOMECOOKED_MEALS_FREQUENCY",
+  "HIGH_FAT_RED_MEAT_FREQUENCY",
+  "READY_TO_EAT_MEALS_FREQUENCY",
+  "SUGAR_SWEETENED_DRINK_FREQUENCY",
+  "SUGARY_SWEETS_FREQUENCY",
+  "SALTED_SNACKS_FREQUENCY",
+  "SPECIALIZED_DIET_FODMAP",
+  "SPECIALIZED_DIET_EXCLUDE_DAIRY",
+  "SPECIALIZED_DIET_EXCLUDE_NIGHTSHADES",
+  "SPECIALIZED_DIET_MODIFIED_PALEO_DIET",
+  "SPECIALIZED_DIET_PALEODIET_OR_PRIMAL_DIET",
+  "OLIVE_OIL")
+
+
+
+
+metadata %>% 
+  select(HOST_SUBJECT_ID, SAMPLE_NAME, SAMPLE_TYPE, 
+         COLLECTION_TIMESTAMP , all_of(host_variables), all_of(diet_variables)) %>%
+  filter(SAMPLE_TYPE=="Stool") %>%
+  dplyr::rename(REGION_BIRTH = "Sub-region Name") %>%
+  inner_join(genus_prop %>% t %>% as.data.frame %>% tibble::rownames_to_column("SAMPLE_NAME"), by = "SAMPLE_NAME" ) %>%
+write.csv(file="agp_metadata_cleaned.csv")
+
+  
+
+
+
+
+```
+
+
+compute median CI for each genera
+
+
+```{r}
+
+metadata_genera =
+metadata %>% 
+  select(HOST_SUBJECT_ID, SAMPLE_NAME, SAMPLE_TYPE, 
+         COLLECTION_TIMESTAMP , all_of(host_variables), all_of(diet_variables)) %>%
+  filter(SAMPLE_TYPE=="Stool") %>%
+  dplyr::rename(REGION_BIRTH = "Sub-region Name") %>%
+  inner_join(genus_prop %>% t %>% as.data.frame %>% tibble::rownames_to_column("SAMPLE_NAME"), by = "SAMPLE_NAME" )
+
+
+
+
+```
+
+
+```{r}
+  # filter(value!="LabControl test") %>%
+  # filter(value != "Self-diagnosed") %>%
+  # filter(value != "Diagnosed by an alternative medicine practitioner") %>%
+  # mutate(value = forcats::fct_recode(value, Never = "Never",
+  #                                             Rarely = "Rarely (less than once/week)",
+  #                                             Rarely = "Rarely (a few times/month)",              
+  #                                             Occasionally = "Occasionally (1-2 times/week)",                 
+  #                                             Regularly = "Regularly (3-5 times/week)", 
+  #                                             Daily = "Daily",
+  #                                             Yes = "true",
+  #                                             No  = "false",
+  #                                             Yes = "Diagnosed by a medical professional (doctor, physician assistant)",
+  #                                             No  = "I do not have this condition" )) %>%
+  # mutate(value = forcats::fct_explicit_na(value, "Missing") ) %>%
+
+
+  
+metadata_genera %>%
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(AGE_YEARS > 18, AGE_YEARS < 60) %>%
+  #select(-AGE_YEARS) %>%
+  #head(10) %>%
+  #mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric()) %>%
+  reshape2::melt(id.vars=c(colnames(metadata_genera)[1:35])) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  top_n(n=1, COLLECTION_TIMESTAMP) %>%
+  ungroup() %>%
+  #group_by(BMI_CAT,ANTIBIOTIC_HISTORY,GLUTEN,LACTOSE,SPECIALIZED_DIET_FODMAP) %>%
+  group_by(variable) %>%
+  summarise(q05=quantile(value,0.05),
+            q25=quantile(value,0.25),
+            q50=quantile(value,0.50),
+            q75=quantile(value,0.75),
+            q95=quantile(value,0.95),
+            q05_log10=quantile(log10(value+10^-6),0.05),
+            q25_log10=quantile(log10(value+10^-6),0.25),
+            q50_log10=quantile(log10(value+10^-6),0.50),
+            q75_log10=quantile(log10(value+10^-6),0.75),
+            q95_log10=quantile(log10(value+10^-6),0.95),
+            lwr_ci=DescTools::MedianCI(value)[["lwr.ci"]],
+            median=DescTools::MedianCI(value)[["median"]],
+            upr_ci=DescTools::MedianCI(value)[["upr.ci"]]) -> genera_basic_stat
+  
+
+write.csv(genera_basic_stat,"agp_genera_basic_stat.csv")
+
+
+```
+
+
+
+
+```{r}
+
+
+genera_basic_stat %>%
+  ggplot() + geom_point(aes(x=q95_log10 ,y=log10(upr_ci+10^-6)))
+
+
+genera_basic_stat %>%
+  ggplot() + geom_point(aes(x=q05_log10 ,y=log10(lwr_ci+10^-6)))
+
+
+
+
+```
+
+
+melt metadata
+
+
+
+```{r}
+
+merge(
+metadata_genera %>%
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(AGE_YEARS > 18, AGE_YEARS < 60) %>%
+  select(-AGE_YEARS) %>%
+  #head(10) %>%
+  #mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric()) %>%
+  dplyr::select(1:35) %>%
+  reshape2::melt(id.vars=c("HOST_SUBJECT_ID","SAMPLE_NAME","SAMPLE_TYPE","COLLECTION_TIMESTAMP")) ,
+
+
+
+metadata_genera %>%
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(AGE_YEARS > 18, AGE_YEARS < 60) %>%
+  select(-AGE_YEARS) %>%
+  #head(10) %>%
+  #mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric()) %>%
+  dplyr::select(1:4,!c(5:35)) %>%
+  reshape2::melt(id.vars=c("HOST_SUBJECT_ID","SAMPLE_NAME","SAMPLE_TYPE","COLLECTION_TIMESTAMP")), by=c("HOST_SUBJECT_ID","SAMPLE_NAME","SAMPLE_TYPE","COLLECTION_TIMESTAMP"))
+
+
+
+
+
+```
+
+```{r eval=FALSE, include=FALSE}
+
+metadata_genera %>%
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(AGE_YEARS >= 18, AGE_YEARS <= 60) %>%
+  #select(-AGE_YEARS) %>%
+  #head(10) %>%
+  #mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric()) %>%
+  reshape2::melt(id.vars=c(colnames(metadata_genera)[1:35])) %>% 
+  group_by(HOST_SUBJECT_ID) %>%
+  top_n(n=1, COLLECTION_TIMESTAMP) %>%
+  ungroup() %>%
+  select(-HOST_SUBJECT_ID, -COLLECTION_TIMESTAMP, -SAMPLE_TYPE, -COUNTRY, -REGION_BIRTH) %>%
+  dplyr::rename(genus=variable, genus_abund=value) %>%
+  reshape::melt(id.vars=c("SAMPLE_NAME","genus","genus_abund")) -> metadata_genera_melt_melt
+
+save(metadata_genera_melt_melt, file="metadata_genera_melt_melt.rda")
+
+
+```
+
+
+
+
