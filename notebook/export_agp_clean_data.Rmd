@@ -143,6 +143,25 @@ compute median CI for each genera
 
 ```{r}
 
+rownames(genus_prop) =
+
+rownames(genus_prop) %>% stringr::str_split(pattern=";", simplify = TRUE) %>%
+  as_tibble() %>%
+  select(4,5,6) %>%
+  mutate(V4 = V4 %>% stringr::str_sub(4), V5 = V5 %>% stringr::str_sub(4),V6 = V6 %>% stringr::str_sub(4)  ) %>%
+  mutate(V5 = ifelse(V5=="", paste0("Unclassified ",V4),V5)) %>%
+  mutate( V6 = ifelse(V6=="", paste0("Unclassified ",V5),V6)  ) %>%
+  group_by(V5,V6) %>%
+  mutate(n=1) %>%
+  mutate(cn = cumsum(n)) %>%
+  mutate(V6 = ifelse(cn==2, paste0(V6," ",cn),V6) ) %>%
+  mutate(genus= paste0(V5,"; ",V6)) %>% pull(genus) %>% 
+  stringr::str_replace("Unclassified Unclassified", "Unclassified") %>% 
+  stringr::str_replace("human", "Unclassified")
+                                                                                                                                                   
+
+
+
 metadata_genera =
 metadata %>% 
   select(HOST_SUBJECT_ID, SAMPLE_NAME, SAMPLE_TYPE, 
@@ -151,7 +170,7 @@ metadata %>%
   dplyr::rename(REGION_BIRTH = "Sub-region Name") %>%
   inner_join(genus_prop %>% t %>% as.data.frame %>% tibble::rownames_to_column("SAMPLE_NAME"), by = "SAMPLE_NAME" )
 
-
+write.csv(metadata_genera,"agp_metadata_genera.csv")
 
 
 ```
@@ -281,5 +300,73 @@ save(metadata_genera_melt_melt, file="metadata_genera_melt_melt.rda")
 ```
 
 
+```{r fig.height=5, fig.width=10}
+
+
+metadata_genera %>%
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(AGE_YEARS > 18, AGE_YEARS < 60) %>%
+  select(-AGE_YEARS) %>%
+  #head(10) %>%
+  #mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric()) %>%
+  #dplyr::select(1:4,36:40,!c(5:35)) %>%
+  dplyr::select(1:4,35:70) %>%
+  reshape2::melt(id.vars=c("HOST_SUBJECT_ID","SAMPLE_NAME","SAMPLE_TYPE","COLLECTION_TIMESTAMP"), by=c("HOST_SUBJECT_ID","SAMPLE_NAME","SAMPLE_TYPE","COLLECTION_TIMESTAMP")) %>%
+  tidyr::separate(variable,sep="g__", into = c("A","genus")) %>%
+  filter(!is.na(genus)) %>%
+  filter(!(genus %in% c(""))) %>%
+  mutate(genus= genus %>% forcats::fct_reorder(value, .desc = TRUE)) %>%
+  ggplot() + geom_boxplot(aes(x=genus ,y=value+10^-6)) + scale_y_log10("rel. abund.",label=scales::percent) +
+  theme_classic() +
+  labs(title = "Adult gut microbiome variation in AGP dataset") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+metadata_genera %>%
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(AGE_YEARS > 18, AGE_YEARS < 60) %>%
+  select(-AGE_YEARS) %>%
+  #head(10) %>%
+  #mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric()) %>%
+  #dplyr::select(1:4,36:40,!c(5:35)) %>%
+  dplyr::select(1:4,ANTIBIOTIC_HISTORY,35:70) %>%
+  reshape2::melt(id.vars=c("HOST_SUBJECT_ID","SAMPLE_NAME","SAMPLE_TYPE","COLLECTION_TIMESTAMP","ANTIBIOTIC_HISTORY")) %>%
+  filter(ANTIBIOTIC_HISTORY %in% c("I have not taken antibiotics in the past year.", "Month")) %>%
+  tidyr::separate(variable,sep="g__", into = c("A","genus")) %>%
+  filter(!is.na(genus)) %>%
+  filter(!(genus %in% c(""))) %>%
+  mutate(genus= genus %>% forcats::fct_reorder(value, .desc = TRUE)) %>%
+  ggplot() + geom_boxplot(aes(x=genus ,y=value+10^-6, fill=ANTIBIOTIC_HISTORY)) + 
+  scale_y_log10("rel. abund.",label=scales::percent) +
+  theme_classic() +
+  labs(title = "Adult gut microbiome variation in AGP dataset") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+
+
+metadata_genera %>%
+  filter(!is.na(AGE_YEARS)) %>%
+  filter(AGE_YEARS > 18, AGE_YEARS < 60) %>%
+  select(-AGE_YEARS) %>%
+  #head(10) %>%
+  #mutate(AGE_YEARS = AGE_YEARS %>% as.character() %>% as.numeric()) %>%
+  #dplyr::select(1:4,36:40,!c(5:35)) %>%
+  dplyr::select(1:4,DIET_TYPE,35:70) %>%
+  reshape2::melt(id.vars=c("HOST_SUBJECT_ID","SAMPLE_NAME","SAMPLE_TYPE","COLLECTION_TIMESTAMP","DIET_TYPE")) %>%
+  #filter(DIET_TYPE %in% c("I have not taken antibiotics in the past year.", "Month")) %>%
+  filter(!is.na(DIET_TYPE)) %>%
+  tidyr::separate(variable,sep="g__", into = c("A","genus")) %>%
+  filter(!is.na(genus)) %>%
+  filter(!(genus %in% c(""))) %>%
+  mutate(genus= genus %>% forcats::fct_reorder(value, .desc = TRUE)) %>%
+  ggplot() + geom_boxplot(aes(x=genus ,y=value+10^-6, fill=DIET_TYPE)) + 
+  scale_y_log10("rel. abund.",label=scales::percent) +
+  theme_classic() +
+  labs(title = "Adult gut microbiome variation in AGP dataset") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+```
 
 
