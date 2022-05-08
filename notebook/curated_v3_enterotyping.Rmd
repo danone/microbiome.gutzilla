@@ -34,7 +34,7 @@ extract BIC and Laplace coefficients from boostrap models
 ```{r}
 BIC_list = map(fit_genus_bootstrap_curated, function(z) map(z, function(y) sapply(y, function(x){attr(x,"goodnessOfFit")[["BIC"]]}))) 
 lplc_list = map(fit_genus_bootstrap_curated, function(z) map(z, function(y) sapply(y, function(x){attr(x,"goodnessOfFit")[["Laplace"]]})))
-k = map(fit_genus_bootstrap, function(z) map(z, function(y) sapply(y, function(x){attr(x,"mixture")$Weight %>% length})))[[1]][[1]]
+k = map(fit_genus_bootstrap_curated, function(z) map(z, function(y) sapply(y, function(x){attr(x,"mixture")$Weight %>% length})))[[1]][[1]]
 
 
 BIC_df = NULL
@@ -212,6 +212,47 @@ df %>% as.data.frame() %>%
 ```
 
 
+### correlation between DMM alpha_weight and shannon alpha diversity
+
+```{r}
+
+
+
+
+
+
+df %>% as.data.frame() %>%
+  tibble::rownames_to_column("taxa") %>%
+  mutate(taxa=factor(taxa, levels=row.names(df))) %>% 
+  reshape2::melt(id.vars="taxa") %>%
+  filter(!variable %in% c("Mean","diff","cdiff")) %>%
+  mutate(variable = variable %>% as.character) %>% 
+  mutate(variable = variable %>% factor(levels=paste0("m",1:24)[m_order]) ) %>%
+  
+  merge(
+    
+    shannon_curated_v3 %>%
+  merge(enterotypes_curated, by="row.names") %>%
+  mutate(Enterotypes_id=paste0("m",Enterotypes_id)) %>%
+  group_by(Enterotypes_id) %>%
+  summarise(m=median(shannon)),
+  
+  by.x="variable", by.y="Enterotypes_id"
+    
+    
+    
+  ) %>%
+  group_by(taxa) %>%
+  do(broom::tidy(cor.test(.$value, .$m, method="spearman"))) %>%
+  ungroup() %>%
+  mutate(p.value = p.adjust(p.value, method = "fdr") %>% round(4)) %>%
+  arrange(desc(abs(estimate))) %>%
+  select(taxa,estimate,p.value)-> cor_alpha_table
+  
+write.csv2(cor_alpha_table, file="cor_alpha_table.csv")
+
+
+```
 
 
 
