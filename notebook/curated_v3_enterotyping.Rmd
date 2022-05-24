@@ -252,6 +252,14 @@ df %>% as.data.frame() %>%
 write.csv2(cor_alpha_table, file="cor_alpha_table.csv")
 
 
+
+# df_curated_v3 %>%
+#   select(Mean,diff) %>%
+#   merge(cor_alpha_table,.,by.x="taxa", by.y="row.names") %>%
+#   ggplot(aes(x=abs(estimate),y=diff)) + geom_point()
+#   #ggrepel::geom_label_repel(aes(label=taxa), max.overlaps = 20)
+
+
 ```
 
 
