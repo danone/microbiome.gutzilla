@@ -219,7 +219,7 @@ write.csv2(metadata_diet_enterotypes, file = "metadata_diet_enterotypes.csv")
 ```{r}
 
 
-metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
+metadata=read.csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "gutzilla"), stringsAsFactors = FALSE, ) %>% mutate_all(na_if,"")
 
 
 variable_to_remove= c("HEIGHT_CM", 
@@ -1129,6 +1129,43 @@ compute_diet_score(metadata_freq) %>%
 
 ```
 
+
+```{r}
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+read.csv2(file="DIET_SCORE_IMP.csv") %>%
+  select(SAMPLE_NAME,DIET_INDEX_IMP) %>%
+  merge(enterotypes, by.x="SAMPLE_NAME", by.y="sample_name") %>%
+  filter(!is.na(DIET_INDEX_IMP)) %>%
+  filter(!is.na(Enterotypes_id)) %>%
+  ggplot() + geom_boxplot(aes(x=Enterotypes_id %>% as.character, y=DIET_INDEX_IMP))
+  
+
+
+```
+
+
+```{r}
+
+read.csv2(file="DIET_SCORE_IMP.csv") %>%
+  select(SAMPLE_NAME,DIET_INDEX_IMP) %>%
+  filter(!is.na(DIET_INDEX_IMP)) %>%
+  merge(genus_prop %>%  t %>%  as.data.frame, by.x="SAMPLE_NAME", by.y="row.names") %>%
+  reshape2::melt(id.vars=c("SAMPLE_NAME","DIET_INDEX_IMP")) %>%
+  tidyr::nest(data = -variable) %>% 
+  mutate(
+    test = purrr::map(data, ~ cor.test(.$DIET_INDEX_IMP, .$value, method="spearman")), # S3 list-col
+    tidied = purrr::map(test, broom::tidy)
+    
+  ) %>% 
+  tidyr::unnest(tidied) %>%
+  arrange(desc(abs(estimate))) %>%
+  select(variable,estimate,p.value) 
+  
+
+
+```
 
 
 
