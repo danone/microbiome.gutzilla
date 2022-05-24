@@ -12,7 +12,7 @@ library("reshape2")
 fit_genus_list_curated = vector("list",5)
 
 seed   =  444
-output = "enterotypes_curated.txt"
+output = "enterotypes_curated_v3.txt"
 
 set.seed(seed); seeds=sample(1:1000, 5)
 
@@ -54,7 +54,13 @@ enterotypes_curated =
 
   mixture(assign=TRUE) %>% as.data.frame %>% set_colnames(c("Enterotypes_id"))
 
+save(enterotypes_curated, file="enterotypes_curated_v3.rda")
+
 # write the output table
 
 write.table(enterotypes_curated, file=output, row.names=TRUE, sep="\t")
+
+
+
+
 
