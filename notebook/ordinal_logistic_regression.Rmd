@@ -1546,7 +1546,10 @@ regm_tidy %>%
 
 ```{r fig.height=15, fig.width=25}
 
+p_cut_off=0.25
+
   regm_tidy %>%
+  group_by(variable) %>% mutate(p.value = p.adjust(p.value, method="fdr")) %>%
     mutate(variable_group = "disease") %>%
    mutate(variable_group = 
              case_when(variable %in% c("AGE_YEARS","SEX","BMI","BOWEL_MOVEMENT_FREQUENCY") ~ "Intrinsic\nHost",
@@ -1565,7 +1568,7 @@ regm_tidy %>%
   mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
   mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
   mutate(estimate = log(estimate)) %>%
-  mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+  mutate(estimate2 = ifelse(p.value>p_cut_off,0,estimate)) %>%
   group_by(variable) %>%
   mutate(s=mean(abs(estimate2))) %>% 
   filter(s>0) %>%
@@ -1588,10 +1591,11 @@ regm_tidy %>%
   mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = TRUE)) %>% 
   ggplot() + 
     geom_tile(aes(y=y.level, x=variable, fill=estimate)) + 
-    geom_point(aes(y=y.level, x=variable, alpha=p.value<0.05)) + 
+    geom_point(aes(y=y.level, x=variable, alpha=p.value<p_cut_off)) + 
     scale_fill_gradient2("Log OR", low=scales::muted("blue"), mid="white", high=scales::muted("red")) +
     facet_grid(branch~variable_group, scale="free", space = "free") + 
     cowplot::theme_cowplot() +
+    scale_alpha_discrete("FDR < 25%") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
     ylab("Microbiome partition\nordered by branch and by alpha-diversity") + xlab("AGP questionnaire data") -> fig4A
     fig4A
@@ -1602,6 +1606,7 @@ regm_tidy %>%
 
   
 regm_tidy %>%
+  group_by(variable) %>% mutate(p.value = p.adjust(p.value, method="fdr")) %>%
     mutate(variable_group = "disease") %>%
    mutate(variable_group = 
              case_when(variable %in% c("AGE_YEARS","SEX","BMI","BOWEL_MOVEMENT_FREQUENCY") ~ "Intrinsic\nHost",
@@ -1620,7 +1625,8 @@ regm_tidy %>%
   mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
   mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
   mutate(estimate = log(estimate)) %>%
-  mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+  mutate(estimate2 = ifelse(p.value>p_cut_off,0,estimate)) %>%
+  #mutate(estimate2 = estimate) %>%
   group_by(variable) %>%
   mutate(s=mean(abs(estimate2))) %>% 
   filter(s>0) %>%
@@ -1634,6 +1640,7 @@ regm_tidy %>%
   ggplot() +
   geom_bar(aes(y=variable,x=estimate,fill=branch), stat="identity", position = "stack") +
   facet_grid(.~variable_group, scale="free", space = "free") + coord_flip() + scale_fill_brewer(type="qual") +
+  
   ylab("") + xlab("absoluted cummulated\nmodel weights") +
 
   cowplot::theme_cowplot() +
@@ -1646,6 +1653,7 @@ regm_tidy %>%
 
 
  regm_tidy %>%
+   group_by(variable) %>% mutate(p.value = p.adjust(p.value, method="fdr")) %>%
     mutate(variable_group = "disease") %>%
     mutate(variable_group = 
              case_when(variable %in% c("AGE_YEARS","SEX","BMI","BOWEL_MOVEMENT_FREQUENCY") ~ "Intrinsic\nHost",
@@ -1664,7 +1672,8 @@ regm_tidy %>%
   mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
   mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
   mutate(estimate = log(estimate)) %>%
-  mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
+  #mutate(estimate2 = ifelse(p.value>p_cut_off,0,estimate)) %>%
+   mutate(estimate2=estimate) %>%
      filter(!(variable %in% grep("COLL", variable, value = TRUE) )) %>%
   group_by(variable) %>%
   mutate(s=mean(abs(estimate2))) %>% 
