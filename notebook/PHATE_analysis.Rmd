@@ -118,12 +118,17 @@ genus_phate$embedding %>%
   #filter(Enterotypes_id %in% c(11,15,6,8,10,3,4,2)) %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=branch), size=1, alpha=0.5) +
   scale_color_brewer("main taxa\nDMM types",type="qual") + theme_classic() +
-  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) #+
+  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) + cowplot::theme_cowplot() -> fig3C #+
   #facet_wrap(~branch)
   
   #+ facet_wrap(~Enterotypes_id%>%as.character)
 
 #save(genus_phate, file="genus_phate.rda")
+
+fig3C
+
+ggsave("AGP_branches_DMM_types.pdf")
+
 ```
 
 ```{r}
@@ -210,8 +215,9 @@ genus_phate$embedding %>%
   #merge(as.data.frame(genus_mada), by.x="Row.names", by.y="row.names") %>%
   merge(genus_bact_prev_ratio, by.x="Row.names", by.y="sample_id") %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=prev_bact_ratio), size=1, alpha=0.5) +
-  scale_color_viridis_c() 
-
+  scale_color_viridis_c("Prevotella/\nBacteroides\nratio (log2)",option="cividis") + 
+  cowplot::theme_cowplot() -> fig3D
+fig3D
 ggsave("genus_phate_prevotella_ratio.pdf")
 
 ```
@@ -243,7 +249,7 @@ genus_phate$embedding %>%
   merge(shannon, by.x="Row.names", by.y="row.names") %>%
   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=shannon), size=1, alpha=0.5) +
   scale_color_viridis_c("Shannon", option="cividis") +
-  ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) +
+  #ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) +
   cowplot::theme_cowplot() -> fig3B
   
 fig3B
@@ -253,13 +259,17 @@ ggsave("genus_phate_shannon.pdf")
 ## figure 3 heatmap apg/curated and branches
 
 
-```{r fig.height=6, fig.width=16}
+```{r fig.height=12, fig.width=18}
 #library(patchwork)
 
-#fig3A / fig3B + plot_layout(widths = c(3,1))
+(((fig3A | fig3B) + plot_layout(widths = c(2,1))) / 
+   patchwork::plot_spacer() / 
+   (fig3D | fig3C)) + plot_layout(heights = c(3,0.1,3)) + plot_annotation(tag_levels = "A")
 
-cowplot::plot_grid(NA,fig3A,NA,fig3B, nrow=1, rel_widths = c(0.5,3,0.5,3), labels = c(NA,"A",NA,"B")) -> figure3
-figure3
+
+
+#cowplot::plot_grid(NA,fig3A,NA,fig3B,fig3C, nrow=1, rel_widths = c(0.5,3,0.5,3,3), labels = c(NA,"A",NA,"B","C")) -> figure3
+#figure3
 ggsave("figures/figure3.pdf")
 
 ```
