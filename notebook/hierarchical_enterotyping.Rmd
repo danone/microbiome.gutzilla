@@ -354,7 +354,19 @@ df %>% as.data.frame()
 
 df_gutzilla = df %>% as.data.frame()
 
+m_order = df %>% as.data.frame() %>% select(-Mean, -diff,-cdiff)  %>% BiotypeR::dist.JSD() %>% hclust(method="complete") %>% unclass %>% .$order
+#m_order = df %>% as.data.frame() %>% select(-Mean, -diff,-cdiff)  %>% t %>% dist() %>% hclust(method="complete") %>% unclass %>% .$order 
 
+
+df %>% as.data.frame() %>%
+  tibble::rownames_to_column("taxa") %>%
+  mutate(taxa=factor(taxa, levels=row.names(df))) %>% 
+  reshape2::melt(id.vars="taxa") %>%
+  filter(!variable %in% c("Mean","diff","cdiff")) %>%
+  mutate(variable = variable %>% as.character) %>% 
+  mutate(variable = variable %>% factor(levels=paste0("m",1:19)[m_order]) )  -> genus_alpha_weight_gutzilla
+
+save(genus_alpha_weight_gutzilla, file="genus_alpha_weight_gutzilla.rda")
 
 df %>% as.data.frame() %>%
   tibble::rownames_to_column("taxa") %>%
