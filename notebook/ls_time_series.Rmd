@@ -1,0 +1,26 @@
+---
+title: "LS time series"
+output: html_notebook
+---
+
+
+```{r}
+
+devtools::load_all()
+
+enterotypes_agp = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+system.file("data-raw/ls_time_series/LS_AGP_dates_surgery.tsv", package = "gutzilla") %>%
+  readr::read_tsv() %>%
+  merge(.,enterotypes_agp, by="sample_name") %>%
+  mutate(collection_timestamp = collection_timestamp %>% lubridate::mdy()) %>%
+  arrange(collection_timestamp) %>%
+  mutate(yearmon = zoo::as.yearmon(collection_timestamp)) %>%
+  mutate(Enterotypes_id = paste0("M",Enterotypes_id)) %>%
+  #filter(value>0.8) %>%
+  ggplot() + geom_histogram(aes(x=collection_timestamp, fill=Enterotypes_id)) + scale_fill_discrete("Local partitions")
+
+
+
+```
+
