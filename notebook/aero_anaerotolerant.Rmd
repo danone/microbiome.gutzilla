@@ -1,0 +1,104 @@
+---
+title: "compute aero anaerotolerant ratio"
+output: html_notebook
+---
+
+
+```{r}
+
+devtools::load_all()
+data("oxytol")
+
+
+```
+
+
+
+```{r}
+
+genus_count_dominant %>% #.[,1:5] %>%
+  merge(oxytol, by.x="row.names", by.y="Genus name") %>%
+  mutate(`Obligate anerobic bacteria` = `Obligate anerobic bacteria` %>% as.character) %>%
+  mutate(`Obligate anerobic bacteria` = ifelse(`Obligate anerobic bacteria`=="1", "yes","no")) %>%
+  group_by(`Obligate anerobic bacteria`) %>%
+  select(-1) %>%
+  summarise_all(sum) %>%
+  reshape2::melt() %>%
+  reshape2::dcast(variable~`Obligate anerobic bacteria`) %>%
+  mutate(anaero_score = log10((no+1)/(yes+1))) -> anaero_ratio
+
+
+
+
+
+```
+
+```{r}
+
+genus_phate$embedding %>%
+  as.data.frame() %>%
+  merge(.,anaero_ratio, by.x="row.names", by.y="variable") %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=anaero_score), alpha=0.5, size=1) + 
+  scale_color_viridis_c("log10\naero/anaero\ncount ratio", option="cividis") + 
+  cowplot::theme_cowplot()  -> fig1E
+
+
+ fig1E
+ 
+ ggsave("aero_phate_plot.pdf")
+
+
+```
+
+
+#spore forming bacteria
+
+```{r}
+
+data("spore")
+
+
+
+```
+
+```{r}
+
+
+curated_v3_species %>% head
+
+
+
+
+
+curated_v3_species %>% #.[,1:5] %>%
+  merge(spore, by.x="Species", by.y="species") %>%
+  group_by(spore) %>%
+  select(-1) %>%
+  summarise_all(sum) %>%
+  reshape2::melt() %>%
+  reshape2::dcast(variable~spore) %>%
+  mutate(spore_score = log10((no+1)/(yes+1))) -> spore_ratio
+
+
+
+```
+
+
+```{r}
+
+spore_ratio %>% head
+
+genus_phate$embedding %>%
+  as.data.frame() %>%
+  merge(.,spore_ratio, by.x="row.names", by.y="variable") %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=spore_score), alpha=0.5, size=1) + 
+  scale_color_viridis_c("spore score", option="cividis") + 
+  cowplot::theme_cowplot()  -> figure_phate_spore
+
+
+ figure_phate_spore
+ 
+ ggsave("spore_phate_plot.pdf")
+
+```
+
