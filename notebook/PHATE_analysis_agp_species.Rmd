@@ -1,0 +1,225 @@
+---
+title: "AGP PHATE species analysis"
+output: html_notebook
+---
+
+
+
+
+
+
+```{r }
+
+library(dplyr)
+library(ggplot2)
+library(ade4)
+library(phateR)
+devtools::load_all(reset = FALSE)
+
+
+```
+
+
+
+load species abundance
+```{r}
+
+species_path = system.file("data-raw/qiime/hitdb_summarizetaxacount/seqs.hitdb_L7.txt", package = "gutzilla")
+
+species = readr::read_tsv(species_path, skip = 1) %>% as.data.frame %>% dplyr::rename(taxa=1)  %>% as_tibble()
+
+
+```
+
+import outliers file
+```{r}
+
+outliers = readLines(con="outliers_samples.txt")
+
+```
+
+load enterotypes set from DMM analysis
+```{r}
+
+enterotypes = readr::read_csv2("enterotypes_prediction_outliers.csv")[,-1]
+
+```
+
+
+
+
+
+
+
+select based on top 100 read mass species and remove outliers
+
+```{r}
+
+
+species %>%
+  #select(1:10) %>%
+  mutate_at(-1, ~./sum(.)) -> species_prop
+
+top_species_mass = 
+  species_prop %>% 
+  select(-all_of(outliers)) %>%
+  tibble::column_to_rownames("taxa") %>% 
+  as.matrix %>% 
+  apply(1,sum) %>% 
+  sort %>% rev %>% head(100)
+
+save(top_species_mass, file="top_species_mass.rda")
+
+species %>%
+  select(-all_of(outliers)) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_species_mass),]-> species
+
+species_prop %>%
+  select(-all_of(outliers)) %>%
+  tibble::column_to_rownames("taxa") %>% .[names(top_species_mass),]-> species_prop
+
+
+
+```
+
+
+```{r}
+
+#genus_L1 = phateR::library.size.normalize(genus %>% t)
+
+species_phate = 
+  species_prop %>%
+  t() %>%
+  merge(enterotypes %>% filter(set != "outliers", value>0.80) %>% select(sample_name), by.x="row.names", by.y="sample_name") %>% 
+  tibble::column_to_rownames("Row.names") %>%
+  phateR::phate(gamma=0, t=60, seed=666)
+
+
+
+
+```
+
+
+
+```{r}
+
+
+species_phate$embedding  %>%
+  as.data.frame() %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2))
+
+
+#plot(species_phate$embedding)
+
+
+
+```
+
+
+```{r}
+
+cor(species_phate$embedding, species_prop[,row.names(species_phate$embedding)] %>% t) %>%
+  t() %>%
+  data.frame() %>%
+  arrange(desc(PHATE1))
+
+cor(species_phate$embedding, species_prop[,row.names(species_phate$embedding)] %>% t) %>%
+  t() %>%
+  data.frame() %>%
+  arrange((PHATE1))
+
+
+cor(species_phate$embedding, species_prop[,row.names(species_phate$embedding)] %>% t) %>%
+  t() %>%
+  data.frame() %>%
+  arrange(desc(PHATE2))
+
+cor(species_phate$embedding, species_prop[,row.names(species_phate$embedding)] %>% t) %>%
+  t() %>%
+  data.frame() %>%
+  arrange((PHATE2))
+
+
+cor(species_phate$embedding, species_prop[,row.names(species_phate$embedding)] %>% t) %>%
+  t() %>%
+  data.frame() %>%
+  filter(abs(PHATE1)>0.2|abs(PHATE2)>0.2) %>%
+  tibble::rownames_to_column("taxa") %>%
+  tidyr::separate(taxa, sep=";|\\|", into=LETTERS[1:10], extra = "drop") %>%
+  mutate(H=ifelse(is.na(H),G,H  )) %>%
+  ggplot() + geom_text(aes(x=PHATE1,y=PHATE2, label=H ))
+
+
+```
+
+
+import shannon
+```{r}
+
+shannon_path = system.file("data-raw/qiime/generated-files-20190512/alpha/shannon.qza", package = "gutzilla")
+
+shannon = qiime2R::read_qza(shannon_path)$data %>% as.data.frame
+
+```
+
+
+
+
+
+
+
+```{r}
+
+
+species_phate$embedding  %>%
+  as.data.frame() %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(shannon, by.x="Row.names", by.y="row.names") %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=shannon), size=1, alpha=0.5) +
+  scale_color_viridis_c("Shannon", option="cividis") +
+  #ggrepel::geom_label_repel(data = enterotypes_phate_centroid, aes(x=PHATE1, y=PHATE2, label=Enterotypes_id)) +
+  cowplot::theme_cowplot()
+
+
+
+```
+
+
+
+```{r fig.height=8, fig.width=12}
+
+cor(species_phate$embedding, species_prop[,row.names(species_phate$embedding)] %>% t) %>%
+  t() %>%
+  data.frame() %>%
+  filter(abs(PHATE1)>0.2|abs(PHATE2)>0.2) %>% row.names -> selected_species
+
+
+species_phate$embedding  %>%
+  as.data.frame() %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(shannon, by.x="Row.names", by.y="row.names") %>%
+  merge(species_prop[selected_species,] %>% t, by.x="Row.names", by.y="row.names") %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=shannon), size=1, alpha=0.5) +
+  scale_color_viridis_c("Shannon", option="cividis") +
+  facet_wrap(~as.character(Enterotypes_id))
+  
+  
+
+
+species_phate$embedding  %>%
+  as.data.frame() %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(shannon, by.x="Row.names", by.y="row.names") %>%
+  merge(species_prop[selected_species,] %>% t, by.x="Row.names", by.y="row.names") %>% #head(100) %>%
+  reshape2::melt(id.vars=c("Row.names","PHATE1","PHATE2","Enterotypes_id","value","set","shannon"), value.name = "prop") %>% #head %>%
+  tidyr::separate(variable, sep=";", into=LETTERS[1:10], extra = "drop") %>%
+  #mutate(taxa=ifelse(is.na(H),G,H  )) %>%
+   ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=log10(prop+10^-6)), size=1, alpha=0.5) +
+   scale_color_viridis_c("prp", option="cividis") +
+  facet_wrap(~as.character(G))
+  
+  
+
+
+```
+
