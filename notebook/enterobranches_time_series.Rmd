@@ -297,7 +297,7 @@ metadata %>%
   ggplot() + geom_bar(aes(x=days_delta_bins, fill=branches), position="fill") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   scale_y_continuous(labels = scales::percent) + scale_fill_brewer("branches after", type="qual") +
-  facet_wrap(~branches_before) + xlab("time range between two samples") + ylab("Samples %") + scale_x_discrete(labels=c("week","4 months", "4 to 12 months", "> 12 months")) -> figS9A
+  facet_wrap(~branches_before) + xlab("time range between two samples") + ylab("Samples %") + scale_x_discrete(labels=c("< 1 week","1 week to 4 months", "4 to 12 months", "> 12 months")) -> figS9A
 
 figS9A
 
