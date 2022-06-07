@@ -1546,7 +1546,7 @@ regm_tidy %>%
 
 ```{r fig.height=15, fig.width=25}
 
-p_cut_off=0.25
+p_cut_off=0.10
 
   regm_tidy %>%
   group_by(variable) %>% mutate(p.value = p.adjust(p.value, method="fdr")) %>%
@@ -1595,7 +1595,7 @@ p_cut_off=0.25
     scale_fill_gradient2("Log OR", low=scales::muted("blue"), mid="white", high=scales::muted("red")) +
     facet_grid(branch~variable_group, scale="free", space = "free") + 
     cowplot::theme_cowplot() +
-    scale_alpha_discrete("FDR < 25%") +
+    scale_alpha_discrete("FDR < 10%") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
     ylab("Microbiome partition\nordered by branch and by alpha-diversity") + xlab("AGP questionnaire data") -> fig4A
     fig4A
