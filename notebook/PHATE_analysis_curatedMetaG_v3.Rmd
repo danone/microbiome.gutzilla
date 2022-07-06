@@ -1139,17 +1139,17 @@ ggsave("figures/Figure1_ter.pdf")
 
 ```
 
-
+## final figure 1
 ```{r fig.height=15, fig.width=15}
 
-(((fig1A+ylab("alpha-\ndiversity"))/
-  fig1B/
-  fig1C2 + plot_layout(heights = c(1,2,1))
+(((fig1A+ylab("alpha-\ndiversity")+xlab("DMM partitions"))/
+  (fig1B+xlab("DMM partitions"))/
+  (fig1C2+xlab("DMM partitions")) + plot_layout(heights = c(1,2,1))
  |
   
   (
     
-    (fig1F/fig1C/fig1D/fig1E/(fig1H+cowplot::theme_cowplot())))
+    (fig1F/fig1C/fig1D/fig1E/((fig1H+scale_colour_brewer("main taxa\nper partitions", type="qual"))+cowplot::theme_cowplot())))
     
   )) + plot_annotation(tag_levels = 'a')
 
