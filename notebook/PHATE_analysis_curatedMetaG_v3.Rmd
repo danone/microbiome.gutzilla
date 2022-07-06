@@ -748,6 +748,31 @@ fig1F_gmhi
 ggsave("gmhi_curated_v3_phate.pdf")
 
 ```
+```{r}
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(shannon_curated_v3, by.x="Row.names", by.y="row.names" ) %>%
+  merge(metadata %>% select(sample_id,age_category2, age), by.x="Row.names", by.y="sample_id") %>% 
+  merge(GMHI, by.x="Row.names", by.y="row.names" ) %>%
+  filter(age > 17) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=GMHI), size=1, alpha=0.5) +
+  scale_color_viridis_c("GMHI", option="cividis") + cowplot::theme_cowplot() + ggtitle(label = "", subtitle = "adult only")
+
+ggsave("gmhi_curated_v3_phate_adult_only.pdf")
+
+genus_phate$embedding %>%
+  merge(enterotypes, by.x="row.names", by.y="sample_name") %>%
+  merge(shannon_curated_v3, by.x="Row.names", by.y="row.names" ) %>%
+  merge(metadata %>% select(sample_id,age_category2, age), by.x="Row.names", by.y="sample_id") %>% 
+  merge(GMHI, by.x="Row.names", by.y="row.names" ) %>%
+  filter(age < 19) %>%
+  ggplot() + geom_point(aes(x=PHATE1, y=PHATE2, col=GMHI), size=1, alpha=0.5) +
+  scale_color_viridis_c("GMHI", option="cividis") + cowplot::theme_cowplot() + ggtitle(label = "", subtitle = "non adult only")
+
+```
+
+
 
 # Alpha-diversity
 ```{r}
