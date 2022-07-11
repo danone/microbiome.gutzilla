@@ -509,7 +509,7 @@ ggplot() +
   geom_tile(aes(x=variable,y=taxa,fill=log10(value))) + 
   scale_fill_viridis_c("DMM model\nalpha (log10)") +
   ylab("taxa") +
-  xlab("DMM community types") -> figS5A
+  xlab("DMM partitions") -> figS5A
 
 
 enterotypes %>%
@@ -523,7 +523,7 @@ enterotypes %>%
   geom_tile(aes(x=Enterotypes_id,y=taxa,fill=log10(value))) + 
   scale_fill_viridis_c("DMM alpha\nweight (log10)") +
   ylab("taxa") +
-  xlab("DMM community types") +
+  xlab("DMM partitions") +
   cowplot::theme_cowplot() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -> figS5A
 
 
@@ -959,7 +959,7 @@ ggplot() +
   geom_tile(aes(x=Enterotypes_id, y=alpha,fill=shannon)) + 
   scale_fill_continuous("alpha-diversity median") +
   ylab("") +
-  xlab("DMM community types")
+  xlab("DMM partitions")
 
 
 enterotypes %>%
@@ -970,7 +970,7 @@ enterotypes %>%
   ggplot() + 
   geom_boxplot(aes(x=Enterotypes_id, y=shannon)) + 
   ylab("alpha-diversity") +
-  xlab("DMM community types") +
+  xlab("DMM partitions") +
   cowplot::theme_cowplot() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -> fig1A
 
 # enterotypes %>%
@@ -1003,7 +1003,7 @@ enterotypes %>%
   geom_boxplot(aes(x=Enterotypes_id, y=shannon)) + 
   #scale_fill_viridis_c(direction = -1, option="plasma") +
   ylab("alpha-diversity") +
-  xlab("DMM community types") +
+  xlab("DMM partitions") +
   cowplot::theme_cowplot() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -> fig1A
 
 
@@ -1121,7 +1121,7 @@ genus_phate$embedding %>%
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   scale_y_continuous(labels=scales::percent) +
   ylab("proportion of samples") +
-  xlab("DMM community types") -> figS7B
+  xlab("DMM partitions") -> figS7B
 
 
 genus_phate$embedding %>%
@@ -1137,7 +1137,7 @@ genus_phate$embedding %>%
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   scale_y_continuous(labels=scales::percent) +
   ylab("Infant samples (%)") +
-  xlab("DMM community types") -> fig1C2
+  xlab("DMM partitions") -> fig1C2
 
 
 figS7A + figS7B + plot_annotation(tag_levels = "A")

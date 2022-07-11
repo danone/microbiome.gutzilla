@@ -20,7 +20,7 @@ load metadata (cleaned) and add united nation subregions
 
 data("UNSD_countries")
 
-metadata = readr::read_csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"))
+metadata = readr::read_csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "gutzilla"))
 
 #to do: check issue parsing IBD variables
 
@@ -404,7 +404,7 @@ mixturewt(fit_genus_list[[seed]][[best_genus_lplc_idx]]) %>%
   geom_hline(yintercept = mixturewt(fit_genus_list[[seed]][[1]])$theta, col="red") +
   cowplot::theme_cowplot() +
   ylab("theta") +
-  xlab("DMM community types") -> figS8E
+  xlab("DMM partitions") -> figS8E
 
 figS8E
 
@@ -710,7 +710,7 @@ merge(enterotypes_prediction,shannon,by.x="sample_name", by.y="row.names")  -> e
 enterotypes_alpha_div %>% 
   ggplot()   + 
   geom_boxplot(aes(x=paste0("M",Enterotypes_id %>% as.character),y=shannon, fill=set)) +
-  xlab("DMM community types") + ylab("alpha-diversity (shannon)") +
+  xlab("DMM partitions") + ylab("alpha-diversity (shannon)") +
   cowplot::theme_cowplot() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -> figS8G
 figS8G
@@ -724,7 +724,7 @@ figS8G
 
 ```{r fig.height=10, fig.width=16}
 
-(figS8ABCD/(figS8E+figS8F+figS8G + plot_layout(widths = c(1,1,1.5)))) + plot_layout(heights = c(2,1)) + plot_annotation(tag_levels = 'A') -> figS8
+(figS8ABCD/(figS8E+figS8F+figS8G + plot_layout(widths = c(1,1,1.5)))) + plot_layout(heights = c(2,1)) + plot_annotation(tag_levels = 'a') -> figS8
 
 figS8
 ggsave("figS8.pdf")
