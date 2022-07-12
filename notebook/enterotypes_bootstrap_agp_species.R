@@ -33,7 +33,7 @@ species = readr::read_tsv(species_path, skip = 1) %>% as.data.frame %>% dplyr::r
 # tidy metadata and add UNSD countries
 data("UNSD_countries")
 
-metadata = readr::read_csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "agp"))
+metadata = readr::read_csv2(system.file("data-raw/Metadata_10317_20191022-112414_curatedv4_VSv1.csv", package = "gutzilla"))
 #to do: check issue parsing IBD variables
 
 colnames(metadata) = stringr::str_to_lower(colnames(metadata))

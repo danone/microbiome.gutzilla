@@ -277,10 +277,10 @@ metadata %>%
   mutate(sample_order=order(COLLECTION_TIMESTAMP)) %>% 
   
 
-  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM types",
-                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM types",
-                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM types",
-                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM types",
+  mutate(branches = case_when(Enterotypes_id %in% c(18,14,16,17,7) ~ "Prevotella DMM partitions",
+                              Enterotypes_id %in% c(11,15,6,8,10,3,4,2) ~ "Bacteroides DMM partitions",
+                              Enterotypes_id %in% c(12,1,5,9) ~ "Clostridiales DMM partitions",
+                              Enterotypes_id %in% c(13) ~ "Akkermansia DMM partitions",
                               TRUE ~ "outliers")
          ) %>%
   
@@ -302,7 +302,7 @@ metadata %>%
 figS9A
 
 
-ggsave("FigS9A_branche_before_after.pdf")
+ggsave("figures/FigS9A_branche_before_after.pdf")
 
 ```
 ## compute prevotella bacteroides ratio within days

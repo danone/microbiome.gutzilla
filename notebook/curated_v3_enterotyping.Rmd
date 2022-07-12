@@ -280,7 +280,7 @@ mixturewt(fit_genus_list[[seed]][[best_genus_lplc_idx]]) %>%
   ggplot() + 
   geom_bar(aes(x=k,y=theta),stat="identity") + 
   geom_hline(yintercept = mixturewt(fit_genus_list[[seed]][[1]])$theta, col="red") + 
-  xlab("DMM community types") + ylab("theta extracted from DMM modelling") +
+  xlab("DMM partitions") + ylab("theta extracted from DMM modelling") +
   scale_x_continuous(breaks = 1:24) +
   cowplot::theme_cowplot() -> figS4A
   

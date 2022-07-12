@@ -1440,9 +1440,9 @@ load("regm_tidy.rda")
                        TRUE ~ "Health associated"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
-  mutate(branch ="Clostridiales DMM types") %>%
-  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
-  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch ="Clostridiales DMM partitions") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM partitions",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM partitions",branch)) %>%
   mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
   mutate(estimate = log(estimate)) %>%
   mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
@@ -1521,9 +1521,9 @@ regm_tidy %>%
                        TRUE ~ "Health associated"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
-  mutate(branch ="Clostridiales DMM types") %>%
-  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
-  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch ="Clostridiales DMM partitions") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM partitions",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM partitions",branch)) %>%
   mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
   mutate(estimate = log(estimate)) %>%
   mutate(estimate2 = ifelse(p.value>0.05,0,estimate)) %>%
@@ -1563,9 +1563,9 @@ p_cut_off=0.10
                        TRUE ~ "Medical history"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
-  mutate(branch ="Clostridiales DMM types") %>%
-  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
-  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch ="Clostridiales DMM partitions") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM partitions",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM partitions",branch)) %>%
   mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
   mutate(estimate = log(estimate)) %>%
   mutate(estimate2 = ifelse(p.value>p_cut_off,0,estimate)) %>%
@@ -1589,6 +1589,7 @@ p_cut_off=0.10
                      TRUE ~ variable)) %>%
   mutate(variable = gsub("_|\\."," ", variable)) %>%
   mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = TRUE)) %>% 
+     mutate(branch = branch %>% gsub("DMM partitions", "\nDMM partitions",.)) %>%
   ggplot() + 
     geom_tile(aes(y=y.level, x=variable, fill=estimate)) + 
     geom_point(aes(y=y.level, x=variable, alpha=p.value<p_cut_off)) + 
@@ -1620,9 +1621,9 @@ regm_tidy %>%
                        TRUE ~ "Medical history"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
-  mutate(branch ="Clostridiales DMM types") %>%
-  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
-  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch ="Clostridiales DMM partitions") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM partitions",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM partitions",branch)) %>%
   mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
   mutate(estimate = log(estimate)) %>%
   mutate(estimate2 = ifelse(p.value>p_cut_off,0,estimate)) %>%
@@ -1667,9 +1668,9 @@ regm_tidy %>%
                        TRUE ~ "Medical history"
                             )) %>%
     merge(enterotypes_shannon_median, by.x="y.level", by.y="Enterotypes_id") %>%
-  mutate(branch ="Clostridiales DMM types") %>%
-  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM types",branch)) %>%
-  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM types",branch)) %>%
+  mutate(branch ="Clostridiales DMM partitions") %>%
+  mutate(branch = ifelse(y.level %in% c("m18","m14","m16","m17","m7"), "Prevotella DMM partitions",branch)) %>%
+  mutate(branch = ifelse(y.level %in% c("m11","m15","m6","m8","m10","m3","m4","m2"), "Bacteroides DMM partitions",branch)) %>%
   mutate(branch = ifelse(y.level %in% c("m13"), "Akk.",branch)) %>%
   mutate(estimate = log(estimate)) %>%
   #mutate(estimate2 = ifelse(p.value>p_cut_off,0,estimate)) %>%
@@ -1681,7 +1682,7 @@ regm_tidy %>%
   ungroup() %>%
   mutate(y.level = y.level %>% stringr::str_to_upper() %>% forcats::fct_reorder(shannon_median, .desc = TRUE)) %>%
   mutate(variable = variable %>% as.character %>% as.factor() %>% forcats::fct_reorder(s, .desc = FALSE)) %>%  
-   mutate(branch = branch %>% gsub("DMM types", "\nDMM types",.)) %>%
+   mutate(branch = branch %>% gsub("DMM partitions", "\nDMM partitions",.)) %>%
   group_by(y.level, variable_group, branch) %>%
   summarise(estimate=sum(abs(estimate2))) %>%
   
